@@ -1,0 +1,5 @@
+sqlalchemy[asyncio]
+psycopg[binary,pool]
+alembic
+aiogram
+pydantic-settings
