@@ -18,7 +18,9 @@ export function BottomNav({ active = "catalog" }: { active?: string }) {
             aria-current={isActive ? "page" : undefined}
             disabled={!isActive}
           >
-            <span className="bottom-nav__icon" aria-hidden="true">{tab.icon}</span>
+            <span className="bottom-nav__pill">
+              <span className="bottom-nav__icon" aria-hidden="true">{tab.icon}</span>
+            </span>
             <span className="bottom-nav__label">{tab.label}</span>
           </button>
         );

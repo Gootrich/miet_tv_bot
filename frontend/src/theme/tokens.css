@@ -9,17 +9,28 @@
   --md-sys-color-primary-container: #e0e0ff;
   --md-sys-color-on-primary-container: #0b0b2b;
 
-  --md-sys-color-surface: #fefbff;
+  --md-sys-color-surface: #fdfbff;
+  --md-sys-color-surface-container-low: #f7f4fb;
+  --md-sys-color-surface-container: #f1edf6;
+  --md-sys-color-surface-container-high: #ebe6f1;
   --md-sys-color-surface-variant: #e3e1ec;
   --md-sys-color-on-surface: #1b1b1f;
   --md-sys-color-on-surface-variant: #46464f;
   --md-sys-color-outline: #777680;
+  --md-sys-color-outline-variant: #c7c5d0;
 
   --md-sys-color-error: #ba1a1a;
   --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #ffdad6;
+  --md-sys-color-on-error-container: #410002;
 
   --md-sys-color-success: #2e7d32;
   --md-sys-color-on-success: #ffffff;
+  --md-sys-color-success-container: #b7f0c0;
+  --md-sys-color-on-success-container: #002106;
+
+  --md-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.08);
+  --md-elevation-2: 0 2px 6px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="dark"] {
@@ -31,16 +42,27 @@
   --md-sys-color-on-primary-container: #e0e0ff;
 
   --md-sys-color-surface: #131318;
+  --md-sys-color-surface-container-low: #1a1a20;
+  --md-sys-color-surface-container: #1f1f25;
+  --md-sys-color-surface-container-high: #26262c;
   --md-sys-color-surface-variant: #2a2a31;
   --md-sys-color-on-surface: #e5e1e9;
   --md-sys-color-on-surface-variant: #c7c5d0;
   --md-sys-color-outline: #918f9a;
+  --md-sys-color-outline-variant: #46464f;
 
   --md-sys-color-error: #ffb4ab;
   --md-sys-color-on-error: #690005;
+  --md-sys-color-error-container: #93000a;
+  --md-sys-color-on-error-container: #ffdad6;
 
   --md-sys-color-success: #7bd389;
   --md-sys-color-on-success: #003910;
+  --md-sys-color-success-container: #005312;
+  --md-sys-color-on-success-container: #b7f0c0;
+
+  --md-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --md-elevation-2: 0 2px 6px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 :root {
@@ -57,14 +79,14 @@
   --md-space-5: 24px;
   --md-space-6: 32px;
 
-  --md-font-body: Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --md-font-body: Roboto, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
 
-  --md-type-display-small: 600 24px/1.25 var(--md-font-body);
-  --md-type-headline-small: 600 20px/1.3 var(--md-font-body);
-  --md-type-title-large: 600 18px/1.35 var(--md-font-body);
+  --md-type-display-small: 600 24px/1.28 var(--md-font-body);
+  --md-type-headline-small: 600 20px/1.32 var(--md-font-body);
+  --md-type-title-large: 600 18px/1.36 var(--md-font-body);
   --md-type-title-medium: 600 16px/1.4 var(--md-font-body);
-  --md-type-body-large: 400 16px/1.5 var(--md-font-body);
-  --md-type-body-medium: 400 14px/1.45 var(--md-font-body);
-  --md-type-label-large: 500 14px/1.3 var(--md-font-body);
-  --md-type-label-medium: 500 12px/1.3 var(--md-font-body);
+  --md-type-body-large: 400 16px/1.55 var(--md-font-body);
+  --md-type-body-medium: 400 14px/1.5 var(--md-font-body);
+  --md-type-label-large: 500 14px/1.35 var(--md-font-body);
+  --md-type-label-medium: 500 12px/1.35 var(--md-font-body);
 }

@@ -21,7 +21,7 @@ export function CatalogPage() {
       <TopBar />
       <main className="page__content">
         <label className="search" aria-label="Поиск оборудования">
-          <span aria-hidden="true">⌕</span>
+          <span className="search__icon" aria-hidden="true">⌕</span>
           <input type="search" placeholder="Найти оборудование" disabled />
         </label>
 
@@ -29,7 +29,17 @@ export function CatalogPage() {
 
         <section className="list" aria-label="Оборудование">
           {visible.length === 0 ? (
-            <p className="empty">Ничего не найдено</p>
+            <div className="empty">
+              <span className="empty__icon" aria-hidden="true">⌕</span>
+              <p className="empty__text">В категории «{category}» пока ничего нет</p>
+              <button
+                type="button"
+                className="empty__action"
+                onClick={() => setCategory("Все")}
+              >
+                Показать всё
+              </button>
+            </div>
           ) : (
             visible.map((item) => <EquipmentCard key={item.id} item={item} />)
           )}
