@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,16 +13,28 @@ async def get_or_create_user(
 ) -> tuple[User, bool]:
     """Возвращает (пользователь, создан_ли_сейчас).
 
-    INSERT ... ON CONFLICT DO NOTHING безопасен при параллельных /start.
+    INSERT ... ON CONFLICT (telegram_id) DO UPDATE:
+    - безопасен при параллельных /start;
+    - обновляет актуальные full_name и username у существующего пользователя.
+
+    Признак «создан сейчас» вычисляется через PostgreSQL-трюк (xmax = 0):
+    у только что вставленной строки системный столбец xmax = 0,
+    у обновлённой — xmax <> 0. Это документированный приём PostgreSQL.
     """
     stmt = (
         pg_insert(User)
         .values(telegram_id=telegram_id, full_name=full_name, username=username)
-        .on_conflict_do_nothing(index_elements=[User.telegram_id])
-        .returning(User.id)
+        .on_conflict_do_update(
+            index_elements=[User.telegram_id],
+            set_={
+                "full_name": full_name,
+                "username": username,
+            },
+        )
+        .returning(User, text("(xmax = 0) AS inserted"))
     )
-    created = (await session.execute(stmt)).scalar_one_or_none() is not None
-    user = (
-        await session.execute(select(User).where(User.telegram_id == telegram_id))
-    ).scalar_one()
+    result = await session.execute(stmt)
+    row = result.one()
+    user: User = row[0]
+    created: bool = bool(row[1])
     return user, created
