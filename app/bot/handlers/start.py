@@ -4,6 +4,7 @@ from aiogram import Router
 from aiogram.filters import CommandStart
 from aiogram.types import Message
 
+from app.bot.keyboards.catalog import main_menu_kb
 from app.db.session import AsyncSessionFactory
 from app.services.users import get_or_create_user
 
@@ -28,7 +29,6 @@ async def cmd_start(message: Message) -> None:
                     username=tg_user.username,
                 )
     except Exception:
-        # Технические детали — только в лог. Пользователю — нейтральный текст.
         logger.exception("Failed to register user telegram_id=%s on /start", tg_user.id)
         await message.answer(
             "Не удалось обработать запрос. Попробуйте позже."
@@ -41,4 +41,7 @@ async def cmd_start(message: Message) -> None:
         "created" if created else "updated",
         user.id,
     )
-    await message.answer(f"Привет, {user.full_name}!")
+    await message.answer(
+        f"Привет, {user.full_name}!",
+        reply_markup=main_menu_kb(),
+    )
