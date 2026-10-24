@@ -1,11 +1,17 @@
 const TABS = [
   { id: "catalog", label: "Каталог", icon: "▤" },
-  { id: "search", label: "Поиск", icon: "⌕" },
+  { id: "bookings", label: "Брони", icon: "📅" },
   { id: "favorites", label: "Избранное", icon: "♡" },
   { id: "profile", label: "Профиль", icon: "◍" },
 ] as const;
 
-export function BottomNav({ active = "catalog" }: { active?: string }) {
+export function BottomNav({
+  active = "catalog",
+  onSelect,
+}: {
+  active?: string;
+  onSelect?: (tab: string) => void;
+}) {
   return (
     <nav className="bottom-nav" aria-label="Основная навигация">
       {TABS.map((tab) => {
@@ -16,7 +22,7 @@ export function BottomNav({ active = "catalog" }: { active?: string }) {
             type="button"
             className={`bottom-nav__item${isActive ? " is-active" : ""}`}
             aria-current={isActive ? "page" : undefined}
-            disabled={!isActive}
+            onClick={() => onSelect?.(tab.id)}
           >
             <span className="bottom-nav__pill">
               <span className="bottom-nav__icon" aria-hidden="true">{tab.icon}</span>

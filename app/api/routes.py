@@ -60,3 +60,73 @@ async def get_model(
             detail="model not found",
         )
     return model
+
+from app.api.deps import get_current_user
+from app.api.schemas import BookingOut, BookingRequest
+from app.models.user import User
+from app.services import booking as booking_service
+
+
+@router.post("/bookings", response_model=BookingOut)
+async def create_booking_endpoint(
+    payload: BookingRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Создает новое бронирование оборудования."""
+    return await booking_service.create_booking(
+        session=session,
+        user_id=current_user.id,
+        planned_start=payload.planned_start,
+        planned_end=payload.planned_end,
+        item_id=payload.item_id,
+        model_id=payload.model_id,
+        quantity=payload.quantity,
+        comment=payload.comment,
+    )
+
+
+@router.get("/bookings", response_model=list[BookingOut])
+async def get_bookings_endpoint(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Возвращает список бронирований текущего пользователя (или всех для администратора)."""
+    is_admin = any(r.role.code == "admin" for r in current_user.roles) if hasattr(current_user, "roles") else False
+    return await booking_service.get_user_bookings(
+        session=session,
+        user_id=current_user.id,
+        is_admin=is_admin,
+    )
+
+
+@router.post("/bookings/{booking_id}/checkout", response_model=BookingOut)
+async def checkout_booking_endpoint(
+    booking_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Подтверждает получение оборудования."""
+    is_admin = any(r.role.code == "admin" for r in current_user.roles) if hasattr(current_user, "roles") else False
+    return await booking_service.checkout_booking(
+        session=session,
+        booking_id=booking_id,
+        user_id=current_user.id,
+        is_admin=is_admin,
+    )
+
+
+@router.post("/bookings/{booking_id}/return", response_model=BookingOut)
+async def return_booking_endpoint(
+    booking_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Подтверждает возврат оборудования."""
+    is_admin = any(r.role.code == "admin" for r in current_user.roles) if hasattr(current_user, "roles") else False
+    return await booking_service.return_booking(
+        session=session,
+        booking_id=booking_id,
+        user_id=current_user.id,
+        is_admin=is_admin,
+    )

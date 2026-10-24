@@ -5,6 +5,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     String,
     Text,
     func,
@@ -15,7 +16,7 @@ from app.db.base import Base
 
 
 class Booking(Base):
-    """Бронирование конкретного экземпляра оборудования."""
+    """Бронирование конкретного экземпляра или количества ресурса."""
 
     __tablename__ = "bookings"
 
@@ -36,6 +37,15 @@ class Booking(Base):
             "actual_return IS NULL OR actual_return >= actual_checkout",
             name="valid_actual_interval",
         ),
+        CheckConstraint(
+            "quantity > 0",
+            name="valid_quantity",
+        ),
+        CheckConstraint(
+            "(item_id IS NOT NULL AND model_id IS NULL AND quantity = 1) OR "
+            "(item_id IS NULL AND model_id IS NOT NULL AND quantity > 0)",
+            name="valid_booking_target_type",
+        ),
         # Шаг времени 15 минут: границы кратны 15 мин, секунд нет.
         CheckConstraint(
             "mod(EXTRACT(MINUTE FROM planned_start AT TIME ZONE 'UTC')::int, 15) = 0 "
@@ -45,14 +55,21 @@ class Booking(Base):
             name="planned_time_step_15min",
         ),
         Index("ix_bookings_item_status", "item_id", "status"),
+        Index("ix_bookings_model_status", "model_id", "status"),
         Index("ix_bookings_user_status", "user_id", "status"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    item_id: Mapped[int] = mapped_column(
+    item_id: Mapped[int | None] = mapped_column(
         ForeignKey("equipment_items.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
+        index=True,
+    )
+
+    model_id: Mapped[int | None] = mapped_column(
+        ForeignKey("equipment_models.id", ondelete="RESTRICT"),
+        nullable=True,
         index=True,
     )
 
@@ -60,6 +77,13 @@ class Booking(Base):
         ForeignKey("users.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
+    )
+
+    quantity: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
     )
 
     planned_start: Mapped[datetime] = mapped_column(
@@ -100,6 +124,6 @@ class Booking(Base):
         server_default=func.now(),
     )
 
-    item: Mapped["EquipmentItem"] = relationship()
-
+    item: Mapped["EquipmentItem | None"] = relationship()
+    model: Mapped["EquipmentModel | None"] = relationship()
     user: Mapped["User"] = relationship()

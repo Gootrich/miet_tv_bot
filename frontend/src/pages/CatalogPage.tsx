@@ -15,7 +15,7 @@ type LoadState =
   | { kind: "error"; message: string }
   | { kind: "ready"; items: CatalogItem[]; categories: string[] };
 
-export function CatalogPage() {
+export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [category, setCategory] = useState<string>("Все");
 
@@ -71,7 +71,8 @@ export function CatalogPage() {
           onSelect={setCategory}
         />
 
-        <section className="list" aria-label="Оборудование">
+        {/* Ключ category гарантирует перерисовку и сброс форм при смене вкладки */}
+        <section key={category} className="list" aria-label="Оборудование">
           {state.kind === "loading" && (
             <div className="empty">
               <p className="empty__text">Загрузка каталога…</p>
@@ -115,11 +116,10 @@ export function CatalogPage() {
         </section>
 
         <p className="mock-note">
-          Источник: API каталога. Доступность оборудования появится на этапе
-          бронирований.
+          Источник: API каталога.
         </p>
       </main>
-      <BottomNav active="catalog" />
+      <BottomNav active="catalog" onSelect={onNavigate} />
     </div>
   );
 }

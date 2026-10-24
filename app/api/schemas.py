@@ -56,3 +56,30 @@ class HealthOut(BaseModel):
 
     status: str
     database: str
+
+
+class BookingRequest(BaseModel):
+    """Схема запроса на создание бронирования."""
+    item_id: int | None = None
+    model_id: int | None = None
+    quantity: int = 1
+    planned_start: str
+    planned_end: str
+    comment: str | None = None
+
+
+class BookingOut(BaseModel):
+    """Схема ответа с данными бронирования."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    item_id: int | None = None
+    model_id: int | None = None
+    user_id: int
+    quantity: int
+    planned_start: str
+    planned_end: str
+    actual_checkout: str | None = None
+    actual_return: str | None = None
+    status: str
+    comment: str | None = None

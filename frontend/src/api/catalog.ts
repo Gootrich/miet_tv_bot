@@ -44,13 +44,24 @@ export interface CatalogItem {
 
 const API_BASE = "/api";
 
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: { Accept: "application/json" },
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new Error(
+    throw new ApiError(
+      response.status,
       `API ${response.status} ${response.statusText}: ${text.slice(0, 200)}`,
     );
   }
@@ -106,4 +117,88 @@ export function categoryNames(
   categories: CategoryWithModelsOut[],
 ): string[] {
   return ["Все", ...categories.map((category) => category.name)];
+}
+
+// --- Типы и функции для бронирования ---
+
+export interface BookingRequest {
+  item_id?: number | null;
+  model_id?: number | null;
+  quantity?: number;
+  planned_start: string; // ISO string
+  planned_end: string;   // ISO string
+  comment?: string | null;
+}
+
+export interface BookingOut {
+  id: number;
+  item_id: number | null;
+  model_id: number | null;
+  user_id: number;
+  quantity: number;
+  planned_start: string;
+  planned_end: string;
+  actual_checkout: string | null;
+  actual_return: string | null;
+  status: string;
+  comment: string | null;
+}
+
+// Получение initData из Telegram WebApp (если доступно) или заглушка для разработки
+function getInitDataHeader(): string {
+  if (typeof window !== "undefined" && (window as any).Telegram?.WebApp?.initData) {
+    return (window as any).Telegram.WebApp.initData;
+  }
+  return ""; // В реальном Telegram Mini App здесь будет строка авторизации
+}
+
+async function fetchJsonWithAuth<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const initData = getInitDataHeader();
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (initData) {
+    headers["x-telegram-init-data"] = initData;
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new ApiError(
+      response.status,
+      `API ${response.status} ${response.statusText}: ${text.slice(0, 200)}`,
+    );
+  }
+  return (await response.json()) as T;
+}
+
+export function createBooking(data: BookingRequest): Promise<BookingOut> {
+  return fetchJsonWithAuth<BookingOut>("/bookings", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function checkoutBooking(bookingId: number): Promise<BookingOut> {
+  return fetchJsonWithAuth<BookingOut>(`/bookings/${bookingId}/checkout`, {
+    method: "POST",
+  });
+}
+
+export function returnBooking(bookingId: number): Promise<BookingOut> {
+  return fetchJsonWithAuth<BookingOut>(`/bookings/${bookingId}/return`, {
+    method: "POST",
+  });
+}
+
+
+export function fetchBookings(): Promise<BookingOut[]> {
+  return fetchJsonWithAuth<BookingOut[]>("/bookings");
 }

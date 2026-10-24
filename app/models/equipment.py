@@ -1,6 +1,7 @@
 from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
+    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -44,6 +45,14 @@ class EquipmentModel(Base):
             "access_policy IN ('all', 'photographer', 'videographer')",
             name="valid_access_policy",
         ),
+        CheckConstraint(
+            "tracking_type IN ('individual', 'quantity')",
+            name="valid_tracking_type",
+        ),
+        CheckConstraint(
+            "tracking_type = 'individual' OR total_quantity >= 0",
+            name="valid_total_quantity",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -74,6 +83,20 @@ class EquipmentModel(Base):
         nullable=False,
         default="all",
         server_default="all",
+    )
+
+    tracking_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="individual",
+        server_default="individual",
+    )
+
+    total_quantity: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
     )
 
     category: Mapped["Category"] = relationship(

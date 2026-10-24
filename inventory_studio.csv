@@ -1,0 +1,7 @@
+category,model_name,manufacturer,description,inventory_number,serial_number,status,notes
+Камеры,Sony A7 III,Sony,Полнокадровая беззеркальная камера,MK-001,SN123456,active,Комплект: батарея + крышка
+Камеры,Sony A7 III,Sony,Полнокадровая беззеркальная камера,MK-002,SN123457,active,
+Свет,Godox SL-60W,Godox,Светодиодный осветитель 60W,MK-010,,active,Чехол в комплекте
+Свет,Godox SL-60W,Godox,Светодиодный осветитель 60W,MK-011,,maintenance,Не включается вентилятор
+Звук,RODE Wireless GO II,RODE,Беспроводная петличная система,MK-020,,active,
+
