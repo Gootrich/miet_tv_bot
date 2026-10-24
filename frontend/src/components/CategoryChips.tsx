@@ -1,14 +1,13 @@
-import { MOCK_CATEGORIES, type MockCategory } from "../mocks/equipment";
-
 interface Props {
-  selected: MockCategory;
-  onSelect: (value: MockCategory) => void;
+  categories: string[];
+  selected: string;
+  onSelect: (value: string) => void;
 }
 
-export function CategoryChips({ selected, onSelect }: Props) {
+export function CategoryChips({ categories, selected, onSelect }: Props) {
   return (
     <div className="chips" role="tablist" aria-label="Категории">
-      {MOCK_CATEGORIES.map((cat) => {
+      {categories.map((cat) => {
         const active = cat === selected;
         return (
           <button

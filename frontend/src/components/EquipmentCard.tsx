@@ -1,15 +1,27 @@
-import type { MockEquipment } from "../mocks/equipment";
+import type { CatalogItem } from "../api/catalog";
 
-const ICON: Record<MockEquipment["icon"], string> = {
+const ICON: Record<CatalogItem["icon"], string> = {
   camera: "📷",
   light: "💡",
   mic: "🎙",
 };
 
-export function EquipmentCard({ item }: { item: MockEquipment }) {
-  const isAvailable = item.status.kind === "available";
-  const statusLabel =
-    item.status.kind === "available" ? "Доступно" : `Занято до ${item.status.until}`;
+function statusInfo(status: CatalogItem["status"]): {
+  label: string;
+  modifier: "ok" | "busy" | "unknown";
+} {
+  switch (status.kind) {
+    case "available":
+      return { label: "Доступно", modifier: "ok" };
+    case "busy":
+      return { label: `Занято до ${status.until}`, modifier: "busy" };
+    case "unknown":
+      return { label: "Доступность уточняется", modifier: "unknown" };
+  }
+}
+
+export function EquipmentCard({ item }: { item: CatalogItem }) {
+  const { label, modifier } = statusInfo(item.status);
 
   return (
     <article className="card">
@@ -19,11 +31,7 @@ export function EquipmentCard({ item }: { item: MockEquipment }) {
       <div className="card__body">
         <div className="card__heading">
           <h2 className="card__title">{item.title}</h2>
-          <span
-            className={`badge${isAvailable ? " badge--ok" : " badge--busy"}`}
-          >
-            {statusLabel}
-          </span>
+          <span className={`badge badge--${modifier}`}>{label}</span>
         </div>
         <p className="card__subtitle">{item.subtitle}</p>
         <p className="card__category">{item.category}</p>

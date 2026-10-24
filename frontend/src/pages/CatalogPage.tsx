@@ -1,20 +1,60 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BottomNav } from "../components/BottomNav";
 import { CategoryChips } from "../components/CategoryChips";
 import { EquipmentCard } from "../components/EquipmentCard";
 import { TopBar } from "../components/TopBar";
-import { MOCK_EQUIPMENT, type MockCategory } from "../mocks/equipment";
+import {
+  categoryNames,
+  fetchCatalog,
+  toCatalogItems,
+  type CatalogItem,
+} from "../api/catalog";
+
+type LoadState =
+  | { kind: "loading" }
+  | { kind: "error"; message: string }
+  | { kind: "ready"; items: CatalogItem[]; categories: string[] };
 
 export function CatalogPage() {
-  const [category, setCategory] = useState<MockCategory>("Все");
+  const [state, setState] = useState<LoadState>({ kind: "loading" });
+  const [category, setCategory] = useState<string>("Все");
 
-  const visible = useMemo(
-    () =>
-      category === "Все"
-        ? MOCK_EQUIPMENT
-        : MOCK_EQUIPMENT.filter((item) => item.category === category),
-    [category],
-  );
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const data = await fetchCatalog();
+        if (cancelled) return;
+        setState({
+          kind: "ready",
+          items: toCatalogItems(data),
+          categories: categoryNames(data),
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setState({
+          kind: "error",
+          message:
+            error instanceof Error ? error.message : "Неизвестная ошибка",
+        });
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const categories = state.kind === "ready" ? state.categories : ["Все"];
+
+  const visible = useMemo(() => {
+    if (state.kind !== "ready") return [];
+    return category === "Все"
+      ? state.items
+      : state.items.filter((item) => item.category === category);
+  }, [state, category]);
 
   return (
     <div className="page">
@@ -25,13 +65,41 @@ export function CatalogPage() {
           <input type="search" placeholder="Найти оборудование" disabled />
         </label>
 
-        <CategoryChips selected={category} onSelect={setCategory} />
+        <CategoryChips
+          categories={categories}
+          selected={category}
+          onSelect={setCategory}
+        />
 
         <section className="list" aria-label="Оборудование">
-          {visible.length === 0 ? (
+          {state.kind === "loading" && (
+            <div className="empty">
+              <p className="empty__text">Загрузка каталога…</p>
+            </div>
+          )}
+
+          {state.kind === "error" && (
+            <div className="empty">
+              <span className="empty__icon" aria-hidden="true">!</span>
+              <p className="empty__text">
+                Не удалось загрузить каталог: {state.message}
+              </p>
+              <button
+                type="button"
+                className="empty__action"
+                onClick={() => window.location.reload()}
+              >
+                Повторить
+              </button>
+            </div>
+          )}
+
+          {state.kind === "ready" && visible.length === 0 && (
             <div className="empty">
               <span className="empty__icon" aria-hidden="true">⌕</span>
-              <p className="empty__text">В категории «{category}» пока ничего нет</p>
+              <p className="empty__text">
+                В категории «{category}» пока ничего нет
+              </p>
               <button
                 type="button"
                 className="empty__action"
@@ -40,12 +108,16 @@ export function CatalogPage() {
                 Показать всё
               </button>
             </div>
-          ) : (
-            visible.map((item) => <EquipmentCard key={item.id} item={item} />)
           )}
+
+          {state.kind === "ready" &&
+            visible.map((item) => <EquipmentCard key={item.id} item={item} />)}
         </section>
 
-        <p className="mock-note">Демо-данные. Реальный каталог — на следующем этапе.</p>
+        <p className="mock-note">
+          Источник: API каталога. Доступность оборудования появится на этапе
+          бронирований.
+        </p>
       </main>
       <BottomNav active="catalog" />
     </div>
