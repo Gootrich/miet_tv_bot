@@ -1,75 +1,139 @@
-/* Material 3 tokens — indigo accent, light + dark */
+/* MIET TV — design tokens (Rounded Minimal + M3) */
 
 :root,
 [data-theme="light"] {
   color-scheme: light;
 
-  --md-sys-color-primary: #4f5bd5;
-  --md-sys-color-on-primary: #ffffff;
-  --md-sys-color-primary-container: #e0e0ff;
-  --md-sys-color-on-primary-container: #0b0b2b;
+  /* primary — насыщенный небесно-синий */
+  --md-sys-color-primary: #2563EB;
+  --md-sys-color-on-primary: #FFFFFF;
+  --md-sys-color-primary-container: #DBEAFE;
+  --md-sys-color-on-primary-container: #0F172A;
 
-  --md-sys-color-surface: #fdfbff;
-  --md-sys-color-surface-container-low: #f7f4fb;
-  --md-sys-color-surface-container: #f1edf6;
-  --md-sys-color-surface-container-high: #ebe6f1;
-  --md-sys-color-surface-variant: #e3e1ec;
-  --md-sys-color-on-surface: #1b1b1f;
-  --md-sys-color-on-surface-variant: #46464f;
-  --md-sys-color-outline: #777680;
-  --md-sys-color-outline-variant: #c7c5d0;
+  /* surface — пастельно-синий / белый */
+  --md-sys-color-surface: #F8FAFC;
+  --md-sys-color-surface-container-low: #F1F5F9;
+  --md-sys-color-surface-container: #FFFFFF;
+  --md-sys-color-surface-container-high: #EEF2F7;
+  --md-sys-color-surface-variant: #E2E8F0;
+  --md-sys-color-on-surface: #0F172A;
+  --md-sys-color-on-surface-variant: #64748B;
+  --md-sys-color-outline: #94A3B8;
+  --md-sys-color-outline-variant: #E2E8F0;
 
-  --md-sys-color-error: #ba1a1a;
-  --md-sys-color-on-error: #ffffff;
-  --md-sys-color-error-container: #ffdad6;
-  --md-sys-color-on-error-container: #410002;
+  /* статусы */
+  --md-sys-color-error: #DC2626;
+  --md-sys-color-on-error: #FFFFFF;
+  --md-sys-color-error-container: #FEE2E2;
+  --md-sys-color-on-error-container: #450A0A;
 
-  --md-sys-color-success: #2e7d32;
-  --md-sys-color-on-success: #ffffff;
-  --md-sys-color-success-container: #b7f0c0;
-  --md-sys-color-on-success-container: #002106;
+  --md-sys-color-success: #059669;
+  --md-sys-color-on-success: #FFFFFF;
+  --md-sys-color-success-container: #D1FAE5;
+  --md-sys-color-on-success-container: #022C22;
 
-  --md-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.08);
-  --md-elevation-2: 0 2px 6px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --md-sys-color-warning: #D97706;
+  --md-sys-color-on-warning: #FFFFFF;
+  --md-sys-color-warning-container: #FEF3C7;
+  --md-sys-color-on-warning-container: #451A03;
+
+  --md-sys-color-scrim: rgba(15, 23, 42, 0.32);
+
+  --md-elevation-1: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.08);
+  --md-elevation-2: 0 2px 6px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --md-sys-color-primary: #bcc2ff;
-  --md-sys-color-on-primary: #1d2678;
-  --md-sys-color-primary-container: #343d96;
-  --md-sys-color-on-primary-container: #e0e0ff;
+  /* primary — индиго, нейтральный графит */
+  --md-sys-color-primary: #818CF8;
+  --md-sys-color-on-primary: #0F1115;
+  --md-sys-color-primary-container: #1E1B4B;
+  --md-sys-color-on-primary-container: #C7D2FE;
 
-  --md-sys-color-surface: #131318;
-  --md-sys-color-surface-container-low: #1a1a20;
-  --md-sys-color-surface-container: #1f1f25;
-  --md-sys-color-surface-container-high: #26262c;
-  --md-sys-color-surface-variant: #2a2a31;
-  --md-sys-color-on-surface: #e5e1e9;
-  --md-sys-color-on-surface-variant: #c7c5d0;
-  --md-sys-color-outline: #918f9a;
-  --md-sys-color-outline-variant: #46464f;
+  /* surface — нейтральный графит */
+  --md-sys-color-surface: #0F1115;
+  --md-sys-color-surface-container-low: #15181E;
+  --md-sys-color-surface-container: #1A1D24;
+  --md-sys-color-surface-container-high: #232730;
+  --md-sys-color-surface-variant: #2A2F3A;
+  --md-sys-color-on-surface: #F1F5F9;
+  --md-sys-color-on-surface-variant: #94A3B8;
+  --md-sys-color-outline: #475569;
+  --md-sys-color-outline-variant: #2A2F3A;
 
-  --md-sys-color-error: #ffb4ab;
-  --md-sys-color-on-error: #690005;
-  --md-sys-color-error-container: #93000a;
-  --md-sys-color-on-error-container: #ffdad6;
+  /* статусы */
+  --md-sys-color-error: #F87171;
+  --md-sys-color-on-error: #1F0808;
+  --md-sys-color-error-container: #3F1212;
+  --md-sys-color-on-error-container: #FECACA;
 
-  --md-sys-color-success: #7bd389;
-  --md-sys-color-on-success: #003910;
-  --md-sys-color-success-container: #005312;
-  --md-sys-color-on-success-container: #b7f0c0;
+  --md-sys-color-success: #34D399;
+  --md-sys-color-on-success: #0F1115;
+  --md-sys-color-success-container: #0F2A1C;
+  --md-sys-color-on-success-container: #A7F3D0;
+
+  --md-sys-color-warning: #FBBF24;
+  --md-sys-color-on-warning: #1A0F00;
+  --md-sys-color-warning-container: #3A2600;
+  --md-sys-color-on-warning-container: #FDE68A;
+
+  --md-sys-color-scrim: rgba(0, 0, 0, 0.6);
 
   --md-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
   --md-elevation-2: 0 2px 6px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
+[data-theme="emerald"] {
+  color-scheme: dark;
+
+  /* primary — мягкий изумрудный */
+  --md-sys-color-primary: #34D399;
+  --md-sys-color-on-primary: #0B1315;
+  --md-sys-color-primary-container: #1F4A38;
+  --md-sys-color-on-primary-container: #BBF7D0;
+
+  /* surface — тёмный с выраженным зелёным подтоном, светлее графита */
+  --md-sys-color-surface: #131A17;
+  --md-sys-color-surface-container-low: #1A2420;
+  --md-sys-color-surface-container: #243028;
+  --md-sys-color-surface-container-high: #2F3D34;
+  --md-sys-color-surface-variant: #3A4A40;
+  --md-sys-color-on-surface: #ECFDF5;
+  --md-sys-color-on-surface-variant: #A7C2B3;
+  --md-sys-color-outline: #6B8578;
+  --md-sys-color-outline-variant: #3A4A40;
+
+  /* статусы */
+  --md-sys-color-error: #FCA5A5;
+  --md-sys-color-on-error: #2A0808;
+  --md-sys-color-error-container: #4A1414;
+  --md-sys-color-on-error-container: #FECACA;
+
+  --md-sys-color-success: #34D399;
+  --md-sys-color-on-success: #0B1315;
+  --md-sys-color-success-container: #1F4A38;
+  --md-sys-color-on-success-container: #BBF7D0;
+
+  --md-sys-color-warning: #FBBF24;
+  --md-sys-color-on-warning: #1A0F00;
+  --md-sys-color-warning-container: #3F2A00;
+  --md-sys-color-on-warning-container: #FDE68A;
+
+  --md-sys-color-scrim: rgba(0, 0, 0, 0.55);
+
+  --md-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --md-elevation-2: 0 2px 6px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+
 :root {
   --md-shape-corner-sm: 8px;
   --md-shape-corner-md: 12px;
   --md-shape-corner-lg: 16px;
-  --md-shape-corner-xl: 28px;
+  --md-shape-corner-xl: 24px;
+  --md-shape-corner-2xl: 28px;
   --md-shape-corner-full: 9999px;
 
   --md-space-1: 4px;
@@ -79,7 +143,7 @@
   --md-space-5: 24px;
   --md-space-6: 32px;
 
-  --md-font-body: Roboto, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
+  --md-font-body: Inter, Roboto, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
 
   --md-type-display-small: 600 24px/1.28 var(--md-font-body);
   --md-type-headline-small: 600 20px/1.32 var(--md-font-body);

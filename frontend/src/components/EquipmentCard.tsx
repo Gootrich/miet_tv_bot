@@ -7,8 +7,41 @@ const ICON: Record<CatalogItem["icon"], string> = {
   mic: "🎙",
 };
 
-export function EquipmentCard({ item }: { item: CatalogItem }) {
-  const [showForm, setShowForm] = useState(false);
+function formatFreeUntil(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  if (sameDay) return `до ${time}`;
+  const date = d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  return `до ${date}, ${time}`;
+}
+
+function availabilityLabel(item: CatalogItem): { text: string; kind: "ok" | "busy" | "off" } {
+  const available = item.availableNow;
+  const total = item.totalQuantity;
+  if (total === 0) return { text: "Нет в наличии", kind: "off" };
+  if (available <= 0) {
+    return {
+      text: item.freeUntil ? `Занято, ${formatFreeUntil(item.freeUntil)}` : "Занято",
+      kind: "busy",
+    };
+  }
+  if (item.freeUntil) {
+    return { text: `Свободно ${formatFreeUntil(item.freeUntil)}`, kind: "ok" };
+  }
+  return { text: `${available} из ${total}`, kind: "ok" };
+}
+
+export function EquipmentCard({
+  item,
+  showCategory = false,
+}: {
+  item: CatalogItem;
+  showCategory?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -17,21 +50,28 @@ export function EquipmentCard({ item }: { item: CatalogItem }) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const setDurationHours = (hours: number) => {
-    const now = new Date();
-    now.setMinutes(Math.ceil(now.getMinutes() / 15) * 15, 0, 0);
-    const startStr = now.toISOString().slice(0, 16);
-    
-    const later = new Date(now.getTime() + hours * 60 * 60 * 1000);
-    const endStr = later.toISOString().slice(0, 16);
-
-    setStart(startStr);
-    setEnd(endStr);
+  const toLocalInput = (d: Date): string => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return (
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+      `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    );
   };
 
-  const handleOpenForm = () => {
-    setDurationHours(2); // по умолчанию на 2 часа вперед
-    setShowForm(true);
+  const setDurationHours = (hours: number) => {
+    const startDate = new Date();
+    const totalMinutes = startDate.getHours() * 60 + startDate.getMinutes();
+    const roundedUp = Math.ceil((totalMinutes + 1) / 15) * 15;
+    startDate.setHours(0, 0, 0, 0);
+    startDate.setMinutes(roundedUp);
+    const endDate = new Date(startDate.getTime() + hours * 60 * 60 * 1000);
+    setStart(toLocalInput(startDate));
+    setEnd(toLocalInput(endDate));
+  };
+
+  const handleOpen = () => {
+    setOpen(true);
+    setDurationHours(2);
     setError(null);
     setSuccess(null);
   };
@@ -42,7 +82,6 @@ export function EquipmentCard({ item }: { item: CatalogItem }) {
       setError("Укажите время начала и окончания");
       return;
     }
-
     try {
       setLoading(true);
       setError(null);
@@ -53,8 +92,8 @@ export function EquipmentCard({ item }: { item: CatalogItem }) {
         planned_end: new Date(end).toISOString(),
         comment: comment ? comment : null,
       });
-      setSuccess("Бронирование успешно создано!");
-      setShowForm(false);
+      setSuccess("Бронирование создано");
+      setOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка создания брони");
     } finally {
@@ -62,109 +101,103 @@ export function EquipmentCard({ item }: { item: CatalogItem }) {
     }
   };
 
+  const av = availabilityLabel(item);
+
   return (
-    <article className="card">
-      <div className="card__thumb" aria-hidden="true">
-        <span>{ICON[item.icon]}</span>
-      </div>
-      <div className="card__body">
-        <div className="card__heading">
-          <h2 className="card__title">{item.title}</h2>
+    <article className={`card card--row${open ? " card--open" : ""}`}>
+      <button
+        type="button"
+        className="row-head"
+        onClick={handleOpen}
+        aria-expanded={open}
+      >
+        <div className="row-head__main">
+          <span className="row-head__title">{item.title}</span>
+          <span className="row-head__meta">
+            {showCategory ? `${item.category} · ` : ""}
+            {item.subtitle || "—"}
+          </span>
+          <span className={`row-head__status row-head__status--${av.kind}`}>
+            <span className={`status-dot status-dot--${
+              av.kind === "ok" ? "success" : av.kind === "busy" ? "warning" : "error"
+            }`} />
+            {av.text}
+          </span>
         </div>
-        <p className="card__subtitle">{item.subtitle}</p>
-        <p className="card__category">{item.category}</p>
+        <span className="row-head__icon" aria-hidden="true">{ICON[item.icon]}</span>
+        <span className="row-head__chevron" aria-hidden="true">›</span>
+      </button>
 
-        {success && (
-          <p style={{ color: "green", fontSize: "0.875rem", margin: "0.5rem 0" }}>
-            {success}
-          </p>
-        )}
+      {success && <div className="status-chip status-chip--success">{success}</div>}
 
-        {!showForm ? (
-          <button
-            type="button"
-            className="card__cta"
-            onClick={handleOpenForm}
-            style={{ cursor: "pointer", background: "#007aff", color: "#fff", border: "none", borderRadius: "8px", padding: "0.5rem 1rem" }}
-          >
-            Забронировать
-          </button>
-        ) : (
-          <form onSubmit={handleSubmit} style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {error && <p style={{ color: "red", fontSize: "0.75rem" }}>{error}</p>}
-            
-            <div style={{ display: "flex", gap: "0.25rem", marginBottom: "0.25rem" }}>
-              <button type="button" onClick={() => setDurationHours(2)} style={{ fontSize: "0.7rem", padding: "0.2rem 0.4rem", background: "#f0f0f0", border: "1px solid #ccc", borderRadius: "4px", cursor: "pointer" }}>+2 часа</button>
-              <button type="button" onClick={() => setDurationHours(4)} style={{ fontSize: "0.7rem", padding: "0.2rem 0.4rem", background: "#f0f0f0", border: "1px solid #ccc", borderRadius: "4px", cursor: "pointer" }}>+4 часа</button>
-              <button type="button" onClick={() => setDurationHours(24)} style={{ fontSize: "0.7rem", padding: "0.2rem 0.4rem", background: "#f0f0f0", border: "1px solid #ccc", borderRadius: "4px", cursor: "pointer" }}>Сутки</button>
-            </div>
+      {open && (
+        <form className="booking-form" onSubmit={handleSubmit}>
+          {error && <div className="status-chip status-chip--error">{error}</div>}
 
-            <label style={{ fontSize: "0.75rem", display: "flex", flexDirection: "column" }}>
-              Начало:
-              <input
-                type="datetime-local"
-                step="900"
-                value={start}
-                onChange={(e) => setStart(e.target.value)}
-                style={{ padding: "0.25rem", borderRadius: "4px", border: "1px solid #ccc" }}
-                required
-              />
-            </label>
+          <div className="preset-row">
+            <button type="button" className="preset" onClick={() => setDurationHours(2)}>+2 часа</button>
+            <button type="button" className="preset" onClick={() => setDurationHours(4)}>+4 часа</button>
+            <button type="button" className="preset" onClick={() => setDurationHours(24)}>Сутки</button>
+          </div>
 
-            <label style={{ fontSize: "0.75rem", display: "flex", flexDirection: "column" }}>
-              Конец:
-              <input
-                type="datetime-local"
-                step="900"
-                value={end}
-                onChange={(e) => setEnd(e.target.value)}
-                style={{ padding: "0.25rem", borderRadius: "4px", border: "1px solid #ccc" }}
-                required
-              />
-            </label>
+          <label className="field">
+            Начало:
+            <input
+              type="datetime-local"
+              step="900"
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+              required
+            />
+          </label>
 
-            <label style={{ fontSize: "0.75rem", display: "flex", flexDirection: "column" }}>
-              Количество:
-              <input
-                type="number"
-                min="1"
-                value={quantity}
-                onChange={(e) => setQuantity(Number(e.target.value))}
-                style={{ padding: "0.25rem", borderRadius: "4px", border: "1px solid #ccc" }}
-                required
-              />
-            </label>
+          <label className="field">
+            Конец:
+            <input
+              type="datetime-local"
+              step="900"
+              value={end}
+              onChange={(e) => setEnd(e.target.value)}
+              required
+            />
+          </label>
 
-            <label style={{ fontSize: "0.75rem", display: "flex", flexDirection: "column" }}>
-              Комментарий:
-              <input
-                type="text"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Необязательно"
-                style={{ padding: "0.25rem", borderRadius: "4px", border: "1px solid #ccc" }}
-              />
-            </label>
+          <label className="field">
+            Количество:
+            <input
+              type="number"
+              min="1"
+              max={Math.max(1, item.totalQuantity)}
+              value={quantity}
+              onChange={(e) => setQuantity(Number(e.target.value))}
+              required
+            />
+          </label>
 
-            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
-              <button
-                type="submit"
-                disabled={loading}
-                style={{ padding: "0.4rem 0.8rem", background: "#34c759", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.75rem" }}
-              >
-                {loading ? "Отправка..." : "Подтвердить"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                style={{ padding: "0.4rem 0.8rem", background: "#e0e0e0", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.75rem" }}
-              >
-                Отмена
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
+          <label className="field">
+            Комментарий:
+            <input
+              type="text"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Необязательно"
+            />
+          </label>
+
+          <div className="row-actions">
+            <button type="submit" className="card__cta" disabled={loading}>
+              {loading ? "Отправка…" : "Подтвердить"}
+            </button>
+            <button
+              type="button"
+              className="empty__action"
+              onClick={() => setOpen(false)}
+            >
+              Отмена
+            </button>
+          </div>
+        </form>
+      )}
     </article>
   );
 }

@@ -4,7 +4,15 @@ import type { ThemeChoice } from "../theme/ThemeProvider";
 const LABEL: Record<ThemeChoice, string> = {
   auto: "Тема: авто",
   light: "Тема: светлая",
-  dark: "Тема: тёмная",
+  dark: "Тема: тёмная (графит)",
+  emerald: "Тема: изумрудная",
+};
+
+const ICON: Record<ThemeChoice, string> = {
+  auto: "◐",
+  light: "☀",
+  dark: "☾",
+  emerald: "◆",
 };
 
 export function TopBar() {
@@ -19,7 +27,7 @@ export function TopBar() {
         aria-label={LABEL[choice]}
         title={LABEL[choice]}
       >
-        {choice === "auto" ? "◐" : choice === "light" ? "☀" : "☾"}
+        {ICON[choice]}
       </button>
     </header>
   );

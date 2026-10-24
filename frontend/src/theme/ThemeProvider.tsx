@@ -1,7 +1,7 @@
 import { createContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-export type ThemeChoice = "auto" | "light" | "dark";
-export type ResolvedTheme = "light" | "dark";
+export type ThemeChoice = "auto" | "light" | "dark" | "emerald";
+export type ResolvedTheme = "light" | "dark" | "emerald";
 
 const STORAGE_KEY = "miet.theme";
 
@@ -15,10 +15,11 @@ interface ThemeContextValue {
 export const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function detectSystem(): ResolvedTheme {
-  // Telegram WebApp has priority when available.
+  // Telegram WebApp имеет приоритет, если доступен.
   const tg = (window as unknown as { Telegram?: { WebApp?: { colorScheme?: string } } }).Telegram?.WebApp;
   const tgScheme = tg?.colorScheme;
-  if (tgScheme === "light" || tgScheme === "dark") return tgScheme;
+  if (tgScheme === "light") return "light";
+  if (tgScheme === "dark") return "dark"; // системная тёмная → нейтральный графит
 
   if (typeof window !== "undefined" && window.matchMedia) {
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -29,7 +30,7 @@ function detectSystem(): ResolvedTheme {
 function readStoredChoice(): ThemeChoice {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw === "auto" || raw === "light" || raw === "dark") return raw;
+    if (raw === "auto" || raw === "light" || raw === "dark" || raw === "emerald") return raw;
   } catch {
     /* ignore */
   }
@@ -63,7 +64,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   };
 
   const cycle = () => {
-    const order: ThemeChoice[] = ["auto", "light", "dark"];
+    const order: ThemeChoice[] = ["auto", "light", "dark", "emerald"];
     const idx = order.indexOf(choice);
     setChoice(order[(idx + 1) % order.length]);
   };

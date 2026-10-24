@@ -16,6 +16,11 @@ export interface EquipmentModelOut {
   manufacturer: string | null;
   description: string | null;
   access_policy: "all" | "photographer" | "videographer";
+  tracking_type: "individual" | "quantity";
+  total_quantity: number;
+  available_now: number;
+  free_until: string | null;
+  next_busy_at: string | null;
 }
 
 export interface EquipmentModelDetailOut extends EquipmentModelOut {
@@ -36,10 +41,11 @@ export interface CatalogItem {
   category: string;
   subtitle: string;
   icon: "camera" | "light" | "mic";
-  status:
-    | { kind: "available" }
-    | { kind: "busy"; until: string }      // заполним на этапе доступности
-    | { kind: "unknown" };
+  trackingType: "individual" | "quantity";
+  totalQuantity: number;
+  availableNow: number;
+  freeUntil: string | null;
+  nextBusyAt: string | null;
 }
 
 const API_BASE = "/api";
@@ -102,21 +108,64 @@ export function toCatalogItems(
         id: `model-${model.id}`,
         modelId: model.id,
         title: model.name,
-        category: category.name,
-        subtitle: model.description ?? model.manufacturer ?? "",
+        category: categoryLabel(category.name),
+        subtitle:
+          model.manufacturer
+            ? `${model.manufacturer}${model.description ? " · " + model.description : ""}`
+            : (model.description ?? ""),
         icon: iconForCategory(category.name),
-        // Реальную доступность пока не знаем — этап бронирований впереди.
-        status: { kind: "unknown" },
+        trackingType: model.tracking_type,
+        totalQuantity: model.total_quantity,
+        availableNow: model.available_now,
+        freeUntil: model.free_until,
+        nextBusyAt: model.next_busy_at,
       });
     }
   }
   return result;
 }
 
+// Порядок отображения категорий (не по алфавиту — как в каталоге студии).
+const CATEGORY_ORDER: string[] = [
+  "cameras",
+  "lenses",
+  "stabilizers",
+  "lighting",
+  "audio",
+  "stands",
+  "power",
+  "studio",
+];
+
+// slug (name в БД) → человекочитаемое имя.
+const CATEGORY_LABELS: Record<string, string> = {
+  cameras:     "Камеры",
+  lenses:      "Оптика",
+  stabilizers: "Крепления",
+  lighting:    "Свет",
+  audio:       "Звук",
+  stands:      "Стойки",
+  power:       "Питание",
+  studio:      "Студия",
+};
+
+function categoryLabel(slug: string): string {
+  return CATEGORY_LABELS[slug] ?? slug;
+}
+
 export function categoryNames(
   categories: CategoryWithModelsOut[],
 ): string[] {
-  return ["Все", ...categories.map((category) => category.name)];
+  const sorted = [...categories].sort((a, b) => {
+    const ia = CATEGORY_ORDER.indexOf(a.name);
+    const ib = CATEGORY_ORDER.indexOf(b.name);
+    // незнакомые — в конец, по алфавиту
+    if (ia === -1 && ib === -1) return a.name.localeCompare(b.name);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+  return ["Все", ...sorted.map((c) => categoryLabel(c.name))];
 }
 
 // --- Типы и функции для бронирования ---

@@ -15,9 +15,20 @@ type LoadState =
   | { kind: "error"; message: string }
   | { kind: "ready"; items: CatalogItem[]; categories: string[] };
 
+function matches(item: CatalogItem, q: string): boolean {
+  if (!q) return true;
+  const needle = q.toLowerCase();
+  return (
+    item.title.toLowerCase().includes(needle) ||
+    item.subtitle.toLowerCase().includes(needle) ||
+    item.category.toLowerCase().includes(needle)
+  );
+}
+
 export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [category, setCategory] = useState<string>("Все");
+  const [query, setQuery] = useState<string>("");
 
   useEffect(() => {
     let cancelled = false;
@@ -51,10 +62,14 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
 
   const visible = useMemo(() => {
     if (state.kind !== "ready") return [];
-    return category === "Все"
-      ? state.items
-      : state.items.filter((item) => item.category === category);
-  }, [state, category]);
+    return state.items.filter((item) => {
+      if (category !== "Все" && item.category !== category) return false;
+      return matches(item, query.trim());
+    });
+  }, [state, category, query]);
+
+  const totalCount = state.kind === "ready" ? state.items.length : 0;
+  const isSearching = query.trim().length > 0;
 
   return (
     <div className="page">
@@ -62,7 +77,22 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
       <main className="page__content">
         <label className="search" aria-label="Поиск оборудования">
           <span className="search__icon" aria-hidden="true">⌕</span>
-          <input type="search" placeholder="Найти оборудование" disabled />
+          <input
+            type="search"
+            placeholder="Найти оборудование"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {isSearching && (
+            <button
+              type="button"
+              className="search__clear"
+              aria-label="Очистить поиск"
+              onClick={() => setQuery("")}
+            >
+              ×
+            </button>
+          )}
         </label>
 
         <CategoryChips
@@ -71,8 +101,7 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
           onSelect={setCategory}
         />
 
-        {/* Ключ category гарантирует перерисовку и сброс форм при смене вкладки */}
-        <section key={category} className="list" aria-label="Оборудование">
+        <section className="list" aria-label="Оборудование">
           {state.kind === "loading" && (
             <div className="empty">
               <p className="empty__text">Загрузка каталога…</p>
@@ -99,24 +128,40 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
             <div className="empty">
               <span className="empty__icon" aria-hidden="true">⌕</span>
               <p className="empty__text">
-                В категории «{category}» пока ничего нет
+                {isSearching
+                  ? `Ничего не найдено по запросу «${query.trim()}»`
+                  : `В категории «${category}» пока ничего нет`}
               </p>
               <button
                 type="button"
                 className="empty__action"
-                onClick={() => setCategory("Все")}
+                onClick={() => {
+                  if (isSearching) {
+                    setQuery("");
+                  } else {
+                    setCategory("Все");
+                  }
+                }}
               >
-                Показать всё
+                {isSearching ? "Очистить поиск" : "Показать всё"}
               </button>
             </div>
           )}
 
           {state.kind === "ready" &&
-            visible.map((item) => <EquipmentCard key={item.id} item={item} />)}
+            visible.map((item) => (
+              <EquipmentCard
+                key={item.id}
+                item={item}
+                showCategory={category === "Все"}
+              />
+            ))}
         </section>
 
         <p className="mock-note">
-          Источник: API каталога.
+          {state.kind === "ready"
+            ? `Найдено: ${visible.length} из ${totalCount}`
+            : "Источник: API каталога."}
         </p>
       </main>
       <BottomNav active="catalog" onSelect={onNavigate} />

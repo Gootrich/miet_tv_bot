@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BottomNav } from "../components/BottomNav";
 import { TopBar } from "../components/TopBar";
 import {
@@ -13,9 +13,22 @@ type LoadState =
   | { kind: "error"; message: string }
   | { kind: "ready"; bookings: BookingOut[] };
 
+type Tab = "active" | "history";
+
+function statusInfo(status: string): { label: string; cls: string; dot: string } {
+  switch (status) {
+    case "pending":   return { label: "Ожидает",  cls: "status-chip--warning", dot: "status-dot--warning" };
+    case "confirmed": return { label: "Выдано",   cls: "status-chip--success", dot: "status-dot--success" };
+    case "completed": return { label: "Возврат",  cls: "status-chip",          dot: "status-dot--success" };
+    case "cancelled": return { label: "Отменено", cls: "status-chip--error",   dot: "status-dot--error"   };
+    default:          return { label: status,     cls: "status-chip",          dot: ""                    };
+  }
+}
+
 export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [actionError, setActionError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("active");
 
   const loadBookings = async () => {
     try {
@@ -53,93 +66,114 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
     }
   };
 
+  const filtered = useMemo(() => {
+    if (state.kind !== "ready") return [];
+    return state.bookings.filter((b) => {
+      if (tab === "active") return b.status === "pending" || b.status === "confirmed";
+      return b.status === "completed" || b.status === "cancelled";
+    });
+  }, [state, tab]);
+
   return (
     <div className="page">
       <TopBar />
       <main className="page__content">
-        <h1 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>
-          Мои бронирования
-        </h1>
+        <h1 className="section-title">Мои бронирования</h1>
+
+        <div className="segmented" role="tablist" aria-label="Брони">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "active"}
+            className={`segmented__item${tab === "active" ? " is-active" : ""}`}
+            onClick={() => setTab("active")}
+          >
+            Активные
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "history"}
+            className={`segmented__item${tab === "history" ? " is-active" : ""}`}
+            onClick={() => setTab("history")}
+          >
+            История
+          </button>
+        </div>
 
         {actionError && (
-          <div style={{ color: "red", marginBottom: "1rem", fontSize: "0.875rem" }}>
+          <div className="status-chip status-chip--error" role="alert">
             {actionError}
           </div>
         )}
 
-        {state.kind === "loading" && <p>Загрузка бронирований...</p>}
-        {state.kind === "error" && <p style={{ color: "red" }}>Ошибка: {state.message}</p>}
-
-        {state.kind === "ready" && state.bookings.length === 0 && (
+        {state.kind === "loading" && <p className="empty__text">Загрузка…</p>}
+        {state.kind === "error" && (
           <div className="empty">
-            <p className="empty__text">У вас пока нет бронирований</p>
+            <p className="empty__text">Ошибка: {state.message}</p>
+            <button className="empty__action" type="button" onClick={loadBookings}>
+              Повторить
+            </button>
           </div>
         )}
 
-        {state.kind === "ready" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {state.bookings.map((b) => (
-              <div
-                key={b.id}
-                style={{
-                  background: "#fff",
-                  border: "1px solid #e0e0e0",
-                  borderRadius: "12px",
-                  padding: "1rem",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-                  <strong>Бронь #{b.id}</strong>
-                  <span style={{ fontWeight: 500, color: b.status === "completed" ? "green" : "orange" }}>
-                    {b.status}
-                  </span>
-                </div>
-                <p style={{ fontSize: "0.875rem", color: "#666", margin: "0.25rem 0" }}>
-                  Модель ID: {b.model_id} {b.item_id ? `| Экземпляр ID: ${b.item_id}` : `| Количество: ${b.quantity}`}
-                </p>
-                <p style={{ fontSize: "0.875rem", color: "#666", margin: "0.25rem 0" }}>
-                  С: {new Date(b.planned_start).toLocaleString()}
-                </p>
-                <p style={{ fontSize: "0.875rem", color: "#666", margin: "0.25rem 0" }}>
-                  По: {new Date(b.planned_end).toLocaleString()}
-                </p>
+        {state.kind === "ready" && filtered.length === 0 && (
+          <div className="empty">
+            <p className="empty__text">
+              {tab === "active" ? "Нет активных броней" : "История пуста"}
+            </p>
+          </div>
+        )}
 
-                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
-                  {!b.actual_checkout && b.status !== "cancelled" && b.status !== "completed" && (
-                    <button
-                      type="button"
-                      onClick={() => handleCheckout(b.id)}
-                      style={{
-                        padding: "0.5rem 1rem",
-                        background: "#007aff",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "8px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Получить
-                    </button>
-                  )}
-                  {b.actual_checkout && !b.actual_return && (
-                    <button
-                      type="button"
-                      onClick={() => handleReturn(b.id)}
-                      style={{
-                        padding: "0.5rem 1rem",
-                        background: "#34c759",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "8px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Вернуть
-                    </button>
-                  )}
+        {state.kind === "ready" && filtered.length > 0 && (
+          <div className="list">
+            {filtered.map((b) => {
+              const s = statusInfo(b.status);
+              return (
+                <div key={b.id} className="card">
+                  <div className="card__heading">
+                    <h2 className="card__title">Бронь #{b.id}</h2>
+                    <span className={`status-chip ${s.cls}`}>
+                      <span className={`status-dot ${s.dot}`} />
+                      {s.label}
+                    </span>
+                  </div>
+
+                  <p className="card__subtitle">
+                    Модель #{b.model_id}
+                    {b.item_id ? ` · Экземпляр #${b.item_id}` : ` · Кол-во: ${b.quantity}`}
+                  </p>
+
+                  <p className="card__subtitle">
+                    С: {new Date(b.planned_start).toLocaleString()}
+                  </p>
+                  <p className="card__subtitle">
+                    По: {new Date(b.planned_end).toLocaleString()}
+                  </p>
+
+                  <div className="row-actions">
+                    {!b.actual_checkout && b.status !== "cancelled" && b.status !== "completed" && (
+                      <button
+                        type="button"
+                        className="card__cta"
+                        onClick={() => handleCheckout(b.id)}
+                      >
+                        Получить
+                      </button>
+                    )}
+                    {b.actual_checkout && !b.actual_return && (
+                      <button
+                        type="button"
+                        className="card__cta"
+                        onClick={() => handleReturn(b.id)}
+                      >
+                        Вернуть
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>

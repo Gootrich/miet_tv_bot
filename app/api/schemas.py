@@ -4,6 +4,8 @@
 ORM-моделями. Внутренние поля (например, telegram_id) сюда не попадают.
 """
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -29,6 +31,11 @@ class EquipmentModelOut(BaseModel):
     name: str
     manufacturer: str | None = None
     description: str | None = None
+    tracking_type: str = Field(description="individual | quantity")
+    total_quantity: int
+    available_now: int = 0
+    free_until: datetime | None = None
+    next_busy_at: datetime | None = None
     access_policy: str = Field(
         description="all | photographer | videographer",
     )
@@ -77,9 +84,9 @@ class BookingOut(BaseModel):
     model_id: int | None = None
     user_id: int
     quantity: int
-    planned_start: str
-    planned_end: str
-    actual_checkout: str | None = None
-    actual_return: str | None = None
+    planned_start: datetime
+    planned_end: datetime
+    actual_checkout: datetime | None = None
+    actual_return: datetime | None = None
     status: str
     comment: str | None = None
