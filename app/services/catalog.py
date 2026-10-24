@@ -36,3 +36,15 @@ async def get_model_with_items(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def list_categories_with_models(
+    session: AsyncSession,
+) -> list[Category]:
+    """Все категории вместе с моделями (eager load), по алфавиту."""
+    result = await session.execute(
+        select(Category)
+        .order_by(Category.name)
+        .options(selectinload(Category.models))
+    )
+    return list(result.scalars().unique().all())

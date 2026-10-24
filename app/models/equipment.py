@@ -30,6 +30,7 @@ class Category(Base):
 
     models: Mapped[list["EquipmentModel"]] = relationship(
         back_populates="category",
+        order_by="EquipmentModel.name",
     )
 
 
