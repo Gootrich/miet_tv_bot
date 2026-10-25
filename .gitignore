@@ -26,3 +26,9 @@ backups/
 # Frontend
 frontend/node_modules/
 frontend/dist/
+
+# Backups and secrets
+.env
+.env.bak.*
+*.bak.*
+*.before_deploy

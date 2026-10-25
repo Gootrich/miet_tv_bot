@@ -13,16 +13,23 @@ async def get_current_user(
     x_telegram_init_data: str | None = Header(None, description="Telegram WebApp initData"),
     session: AsyncSession = Depends(get_session),
 ) -> User:
-    """Аутентифицирует пользователя по Telegram initData.
-    Если заголовок пустой или 'dev-mode' (для локальной разработки), подставляет тестового пользователя.
+    """Аутентифицирует пользователя через Telegram initData.
+    Тестовый пользователь доступен только при DEBUG=true.
     """
     if not x_telegram_init_data or x_telegram_init_data == "dev-mode":
+        if not settings.debug:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Требуется авторизация через Telegram.",
+            )
+
         result = await session.execute(
             select(User)
             .options(selectinload(User.roles))
             .where(User.telegram_id == 123456789)
         )
         user = result.scalar_one_or_none()
+
         if not user:
             user = User(
                 telegram_id=123456789,
@@ -39,6 +46,7 @@ async def get_current_user(
                 .where(User.telegram_id == 123456789)
             )
             user = result.scalar_one()
+
         return user
 
     bot_token = getattr(settings, "bot_token", None)
@@ -64,18 +72,21 @@ async def get_current_user(
     user = result.scalar_one_or_none()
 
     if not user:
-        full_name = f"{user_data.get('first_name', '')} {user_data.get('last_name', '')}".strip() or "User"
-        username = user_data.get("username")
-        
+        full_name = (
+            f"{user_data.get('first_name', '')} "
+            f"{user_data.get('last_name', '')}"
+        ).strip() or "User"
+
         user = User(
             telegram_id=telegram_id,
             full_name=full_name,
-            username=username,
+            username=user_data.get("username"),
             is_active=True,
         )
         session.add(user)
         await session.commit()
         await session.refresh(user)
+
         result = await session.execute(
             select(User)
             .options(selectinload(User.roles))
@@ -84,14 +95,19 @@ async def get_current_user(
         user = result.scalar_one()
     else:
         updated = False
-        new_full_name = f"{user_data.get('first_name', '')} {user_data.get('last_name', '')}".strip()
+        new_full_name = (
+            f"{user_data.get('first_name', '')} "
+            f"{user_data.get('last_name', '')}"
+        ).strip()
+
         if new_full_name and user.full_name != new_full_name:
             user.full_name = new_full_name
             updated = True
+
         if user_data.get("username") and user.username != user_data.get("username"):
             user.username = user_data.get("username")
             updated = True
-        
+
         if updated:
             await session.commit()
             await session.refresh(user)
