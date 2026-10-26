@@ -57,6 +57,7 @@ class Booking(Base):
         Index("ix_bookings_item_status", "item_id", "status"),
         Index("ix_bookings_model_status", "model_id", "status"),
         Index("ix_bookings_user_status", "user_id", "status"),
+        Index("ix_bookings_group", "group_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -77,6 +78,11 @@ class Booking(Base):
         ForeignKey("users.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
+    )
+
+    group_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
     )
 
     quantity: Mapped[int] = mapped_column(

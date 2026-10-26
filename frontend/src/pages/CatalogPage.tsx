@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BottomNav } from "../components/BottomNav";
 import { CategoryChips } from "../components/CategoryChips";
 import { EquipmentCard } from "../components/EquipmentCard";
+import { BatchBookingModal } from "../components/BatchBookingModal";
 import { TopBar } from "../components/TopBar";
 import {
   categoryNames,
@@ -30,9 +31,12 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
   const [category, setCategory] = useState<string>("Все");
   const [query, setQuery] = useState<string>("");
 
+  // Мультивыбор: Map<model_id, quantity>
+  const [selected, setSelected] = useState<Map<number, number>>(() => new Map());
+  const [batchOpen, setBatchOpen] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
-
     async function load() {
       try {
         const data = await fetchCatalog();
@@ -46,16 +50,12 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
         if (cancelled) return;
         setState({
           kind: "error",
-          message:
-            error instanceof Error ? error.message : "Неизвестная ошибка",
+          message: error instanceof Error ? error.message : "Неизвестная ошибка",
         });
       }
     }
-
     void load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   const categories = state.kind === "ready" ? state.categories : ["Все"];
@@ -70,6 +70,35 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
 
   const totalCount = state.kind === "ready" ? state.items.length : 0;
   const isSearching = query.trim().length > 0;
+
+  // --- выбор ---
+  const toggleSelect = (item: CatalogItem) => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (next.has(item.modelId)) next.delete(item.modelId);
+      else next.set(item.modelId, 1);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelected(new Map());
+
+  const selectedItems: Array<{ item: CatalogItem; quantity: number }> = useMemo(() => {
+    if (state.kind !== "ready") return [];
+    const byId = new Map(state.items.map((i) => [i.modelId, i]));
+    const out: Array<{ item: CatalogItem; quantity: number }> = [];
+    for (const [mid, q] of selected.entries()) {
+      const it = byId.get(mid);
+      if (it) out.push({ item: it, quantity: q });
+    }
+    return out;
+  }, [state, selected]);
+
+  const onBatchSuccess = () => {
+    setBatchOpen(false);
+    setSelected(new Map());
+    onNavigate("bookings");
+  };
 
   return (
     <div className="page">
@@ -136,11 +165,8 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
                 type="button"
                 className="empty__action"
                 onClick={() => {
-                  if (isSearching) {
-                    setQuery("");
-                  } else {
-                    setCategory("Все");
-                  }
+                  if (isSearching) setQuery("");
+                  else setCategory("Все");
                 }}
               >
                 {isSearching ? "Очистить поиск" : "Показать всё"}
@@ -154,6 +180,8 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
                 key={item.id}
                 item={item}
                 showCategory={category === "Все"}
+                selected={selected.has(item.modelId)}
+                onToggleSelect={toggleSelect}
               />
             ))}
         </section>
@@ -163,7 +191,42 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
             ? `Найдено: ${visible.length} из ${totalCount}`
             : "Источник: API каталога."}
         </p>
+
+        {/* Отступ, чтобы fab-bar не закрывал последнюю карточку */}
+        {selected.size > 0 && <div style={{ height: 80 }} />}
       </main>
+
+      {/* Плавающая панель «N выбрано» */}
+      {selected.size > 0 && (
+        <div className="fab-bar" role="region" aria-label="Выбранные для пакетной брони">
+          <div className="fab-bar__info">
+            <span className="fab-bar__count">{selected.size}</span>
+            <span className="fab-bar__label">выбрано</span>
+          </div>
+          <button
+            type="button"
+            className="fab-bar__clear"
+            onClick={clearSelection}
+          >
+            Очистить
+          </button>
+          <button
+            type="button"
+            className="fab-bar__cta"
+            onClick={() => setBatchOpen(true)}
+          >
+            Забронировать выбранное
+          </button>
+        </div>
+      )}
+
+      <BatchBookingModal
+        open={batchOpen}
+        items={selectedItems}
+        onClose={() => setBatchOpen(false)}
+        onSuccess={onBatchSuccess}
+      />
+
       <BottomNav active="catalog" onSelect={onNavigate} />
     </div>
   );

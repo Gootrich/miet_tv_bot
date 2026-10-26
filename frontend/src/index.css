@@ -844,3 +844,1006 @@ textarea {
 .card--row .booking-form {
   padding: 0 var(--md-space-4) var(--md-space-4);
 }
+
+/* --- dev user switcher --- */
+.dev-switcher {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin: 0;
+  border-radius: 0;
+  background: var(--md-sys-color-surface-container, rgba(0,0,0,0.06));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant, rgba(0,0,0,0.08));
+  font-size: 12px;
+}
+.dev-switcher__label {
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.dev-switcher__select {
+  flex: 1;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--md-sys-color-outline, rgba(0,0,0,0.2));
+  background: var(--md-sys-color-surface, transparent);
+  color: inherit;
+  font: inherit;
+}
+
+/* --- admin section --- */
+.admin-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+.admin-badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 6px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: var(--md-sys-color-error, #d33);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+.card__cta--danger {
+  background: var(--md-sys-color-error, #d33);
+  color: #fff;
+}
+.card__cta--secondary {
+  background: var(--md-sys-color-surface-container-high, rgba(0,0,0,0.08));
+  color: inherit;
+}
+
+/* --- admin roles chips --- */
+.card__roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--md-sys-color-secondary-container, rgba(0,0,0,0.08));
+  font-size: 12px;
+}
+.role-chip__remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 4px;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 14px;
+  line-height: 1;
+}
+.role-chip__remove:hover { opacity: 1; }
+
+.card__code {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  opacity: 0.7;
+  background: var(--md-sys-color-surface-container-high, rgba(0,0,0,0.06));
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.eq-filter {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 8px;
+  font-size: 13px;
+}
+.eq-filter select {
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--md-sys-color-outline, rgba(0,0,0,0.2));
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.equipment-admin { display: flex; flex-direction: column; gap: 8px; }
+
+/* --- Fix native select/option theme (Chrome/Firefox default to white) --- */
+select,
+option,
+textarea,
+input[type="text"],
+input[type="number"],
+input[type="search"] {
+  background-color: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-corner-sm);
+  padding: 6px 10px;
+  font: var(--md-type-body-medium);
+}
+
+select:focus,
+textarea:focus,
+input:focus {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 1px;
+}
+
+option {
+  background-color: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+}
+
+option:checked {
+  background-color: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+/* ============================================================
+   Modals
+   ============================================================ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--md-sys-color-scrim);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 120ms ease;
+}
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+
+.modal {
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+  border-radius: var(--md-shape-corner-lg);
+  box-shadow: var(--md-elevation-2);
+  overflow: hidden;
+  animation: slideUp 160ms ease;
+}
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0 }
+  to   { transform: translateY(0);    opacity: 1 }
+}
+
+.modal__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+.modal__title {
+  flex: 1;
+  margin: 0;
+  font: var(--md-type-title-large);
+}
+.modal__close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--md-shape-corner-full);
+  background: transparent;
+  color: inherit;
+  font-size: 20px;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.modal__close:hover {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.modal__body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.modal__text {
+  margin: 0;
+  font: var(--md-type-body-large);
+  color: var(--md-sys-color-on-surface);
+}
+
+.modal__footer {
+  padding: 12px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+
+/* --- Fields inside modals --- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field__label {
+  font: var(--md-type-label-medium);
+  color: var(--md-sys-color-on-surface-variant);
+}
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  font: var(--md-type-body-medium);
+}
+.field textarea {
+  resize: vertical;
+  min-height: 72px;
+  font-family: inherit;
+}
+
+/* ============================================================
+   Toasts
+   ============================================================ */
+.toast-stack {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(520px, calc(100vw - 24px));
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--md-shape-corner-md);
+  box-shadow: var(--md-elevation-2);
+  font: var(--md-type-body-medium);
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  cursor: pointer;
+  pointer-events: auto;
+  animation: toastIn 160ms ease;
+}
+@keyframes toastIn {
+  from { transform: translateY(-8px); opacity: 0 }
+  to   { transform: translateY(0);    opacity: 1 }
+}
+.toast--error {
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  border-color: var(--md-sys-color-error);
+}
+.toast--success {
+  background: var(--md-sys-color-success-container);
+  color: var(--md-sys-color-on-success-container);
+  border-color: var(--md-sys-color-success);
+}
+.toast--info {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border-color: var(--md-sys-color-primary);
+}
+.toast__msg {
+  flex: 1;
+  word-break: break-word;
+}
+.toast__close {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  border-radius: var(--md-shape-corner-full);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.toast__close:hover { opacity: 1; }
+
+/* ============================================================
+   DateTimeRangePicker (Этап 2 UX, M3 Expressive)
+   Колесо: 4 колонки (День/Месяц/Час/Мин), высота ~5 строк, маска.
+   Keyboard: DD.MM.YYYY HH:MM.
+   ============================================================ */
+
+.dtr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-space-3);
+  width: 100%;
+}
+
+/* ----- head: табы растянуты, переключатель режима справа ----- */
+
+.dtr__head {
+  display: flex;
+  align-items: center;
+  gap: var(--md-space-2);
+}
+
+.dtr__tabs {
+  flex: 1 1 auto;
+  display: flex;
+  gap: var(--md-space-1);
+}
+
+.dtr__tabs .segmented__item {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: var(--md-space-2) var(--md-space-3);
+}
+
+.dtr__mode {
+  flex: 0 0 auto;
+  padding: var(--md-space-2) var(--md-space-3);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface-variant);
+  border-radius: var(--md-shape-corner-full);
+  font: var(--md-type-label-large);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.dtr__mode:hover {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border-color: var(--md-sys-color-primary-container);
+}
+
+.dtr__mode:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/* ----- summary ----- */
+
+.dtr__error {
+  color: var(--md-sys-color-error);
+  font: var(--md-type-body-small);
+  padding: 0 var(--md-space-2);
+}
+
+/* ----- keyboard ----- */
+
+.dtr-kb {
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-space-2);
+  padding: var(--md-space-2) 0;
+}
+
+.dtr-kb__row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--md-space-1);
+  flex-wrap: nowrap;
+}
+
+.dtr-kb__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.dtr-kb__input {
+  width: 2.8em;             /* компактно, но не 3.4ch */
+  min-width: 42px;
+  padding: var(--md-space-2) var(--md-space-1);
+  border: 1px solid var(--md-sys-color-outline);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
+  border-radius: var(--md-shape-corner-small);
+  font: var(--md-type-title-medium);
+  text-align: center;
+  outline: none;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+/* ГГГГ — шире */
+.dtr-kb__cell:nth-of-type(3) .dtr-kb__input {
+  width: 3.6em;
+  min-width: 60px;
+}
+
+.dtr-kb__input:focus {
+  border-color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.dtr-kb__cell-label {
+  font: var(--md-type-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.dtr-kb__sep {
+  font: var(--md-type-title-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  padding-bottom: 1.2em;
+}
+
+.dtr-kb__hint {
+  font: var(--md-type-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+  text-align: center;
+}
+
+/* ----- карточки в BookingsPage: центрирование названия модели ----- */
+
+.bookings-page .card__title {
+  text-align: center;
+  width: 100%;
+}
+
+/* ============================================================
+   E: мультивыбор в каталоге + пакетная бронь
+   ============================================================ */
+
+/* Кнопка «+ / ✓» в шапке карточки каталога */
+.row-head__select {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface-variant);
+  border-radius: var(--md-shape-corner-full);
+  font: var(--md-type-title-medium);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.row-head__select:hover {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border-color: var(--md-sys-color-primary-container);
+}
+
+.row-head__select.is-selected {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  border-color: var(--md-sys-color-primary);
+  transform: scale(1.05);
+}
+
+.row-head__select:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/* Плавающая панель «N выбрано → Забронировать пакетом» */
+.fab-bar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px) + var(--md-space-3));
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--md-space-2);
+  padding: var(--md-space-2) var(--md-space-3);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-corner-full);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  max-width: min(560px, calc(100vw - 24px));
+}
+
+.fab-bar__info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 var(--md-space-1);
+}
+
+.fab-bar__count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  border-radius: var(--md-shape-corner-full);
+  font: var(--md-type-label-large);
+}
+
+.fab-bar__label {
+  font: var(--md-type-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.fab-bar__clear {
+  padding: var(--md-space-1) var(--md-space-2);
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-type-label-medium);
+  cursor: pointer;
+  border-radius: var(--md-shape-corner-full);
+}
+.fab-bar__clear:hover { background: var(--md-sys-color-surface-container); }
+
+.fab-bar__cta {
+  padding: var(--md-space-2) var(--md-space-3);
+  border: none;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  font: var(--md-type-label-large);
+  border-radius: var(--md-shape-corner-full);
+  cursor: pointer;
+  transition: background-color 140ms ease, transform 140ms ease;
+}
+.fab-bar__cta:hover { transform: scale(1.03); }
+.fab-bar__cta:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: 2px; }
+
+/* Список в модалке пакетной брони */
+.batch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: var(--md-space-2) 0;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding: var(--md-space-2);
+  background: var(--md-sys-color-surface-container-low);
+  border-radius: var(--md-shape-corner-medium);
+}
+
+.batch-list__row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--md-space-2);
+  align-items: center;
+  padding: var(--md-space-1) 0;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+.batch-list__row:last-child { border-bottom: none; }
+
+.batch-list__title {
+  font: var(--md-type-body-medium);
+  color: var(--md-sys-color-on-surface);
+}
+.batch-list__meta {
+  font: var(--md-type-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+.batch-list__qty {
+  font: var(--md-type-label-large);
+  color: var(--md-sys-color-primary);
+}
+
+/* ============================================================
+   E-fix-1: правки wheel, summary, HorizontalWheel, кнопки
+   ============================================================ */
+
+/* wheel: 3 видимых строки вместо 5 */
+
+/* summary: две строки, каждая — Начало/Конец */
+
+/* Форма брони: Отмена / Подтвердить по краям */
+.booking-form .row-actions--split {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--md-space-2);
+  width: 100%;
+}
+
+/* batch-list в модалке: не фиксируем высоту, страница/модалка скроллится */
+.batch-list {
+  max-height: none;
+  overflow: visible;
+}
+
+/* modal__body — если модалка выше экрана, пусть она сама скроллится */
+.modal__body {
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+}
+
+/* мобильная ширина: на всякий случай уменьшаем item-wheel до 32px? — не трогаю,
+   ключевое — 3 видимых строки, а не 5 */
+
+/* ============================================================
+   E-fix-2: QuantityStepper, batch-list (колонка), summary
+   ============================================================ */
+
+/* summary одной строкой: start → end */
+
+/* QuantityStepper: [-] [input] [+] */
+.qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border: 1px solid var(--md-sys-color-outline);
+  background: var(--md-sys-color-surface-container-low);
+  border-radius: var(--md-shape-corner-full);
+}
+.qty__btn {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-type-title-medium);
+  cursor: pointer;
+  border-radius: var(--md-shape-corner-full);
+  transition: background-color 120ms ease;
+}
+.qty__btn:hover:not(:disabled) {
+  background: var(--md-sys-color-surface-container-high);
+}
+.qty__btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.qty__input {
+  width: 2.4em;
+  min-width: 36px;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-type-title-medium);
+  text-align: center;
+  outline: none;
+}
+.qty__input:focus {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border-radius: var(--md-shape-corner-small);
+}
+
+/* batch-list: колонка справа для количества, инфо — несколько строк */
+.batch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: var(--md-space-2) 0;
+  padding: var(--md-space-1);
+  /* без max-height: страница/модалка сами скроллятся */
+}
+
+.batch-list__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--md-space-3);
+  align-items: center;
+  padding: var(--md-space-2) var(--md-space-1);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+.batch-list__row:last-child { border-bottom: none; }
+
+.batch-list__info {
+  min-width: 0; /* чтобы длинные названия переносились */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.batch-list__title {
+  font: var(--md-type-title-medium);
+  color: var(--md-sys-color-on-surface);
+  white-space: normal;
+  word-break: break-word;
+}
+.batch-list__meta {
+  font: var(--md-type-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: normal;
+  word-break: break-word;
+}
+.batch-list__qty {
+  flex: 0 0 auto;
+}
+
+/* QuantityStepper: pill/овал, ширина зависит от длины числа */
+.qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  border: 1px solid var(--md-sys-color-outline);
+  background: var(--md-sys-color-surface-container-low);
+  border-radius: 999px; /* овал; для 1 цифры — почти круг */
+  min-height: 32px;
+  /* ширина — по содержимому */
+}
+.qty__btn {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-type-title-medium);
+  cursor: pointer;
+  border-radius: 999px;
+  transition: background-color 120ms ease, opacity 120ms ease;
+  flex: 0 0 auto;
+}
+.qty__btn:hover:not(:disabled) {
+  background: var(--md-sys-color-surface-container-high);
+}
+.qty__btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+.qty__btn:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+.qty__input {
+  width: auto;
+  min-width: 1.6em;
+  max-width: 3.5em;
+  padding: 2px 2px;
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-type-title-medium);
+  text-align: center;
+  outline: none;
+  field-sizing: content; /* современные браузеры: ширина по содержимому */
+}
+.qty__input:focus {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border-radius: var(--md-shape-corner-full);
+}
+
+/* batch-list: крупный заголовок названия, в отдельном блоке */
+.batch-list__title {
+  font: var(--md-type-title-medium);
+  font-size: 1.05rem; /* чуть крупнее */
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+/* spacer = (visible-1)/2 * ITEM_H = 1 * ITEM_H для 3 строк */
+
+/* /* ============================================================
+   Summary одной строкой: С: ... · До: ...
+   ============================================================ */
+
+.dtr-range-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: var(--md-space-2) var(--md-space-3);
+  background: var(--md-sys-color-surface-container-low);
+  border-radius: var(--md-shape-corner-medium);
+  font: var(--md-type-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.dtr-range-line__label {
+  color: var(--md-sys-color-on-surface);
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+
+.dtr-range-line__value {
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-type-label-large);
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.dtr-range-line__sep {
+  color: var(--md-sys-color-on-surface-variant);
+  flex: 0 0 auto;
+  margin: 0 var(--md-space-1);
+}
+
+/* На узком экране — уменьшим колонки и шрифт, чтобы влезало в ряд */
+@media (max-width: 420px) {
+        }
+
+
+/* ============================================================
+   Picker — концепция C (M3 expressive, сдержанная)
+   3 видимые строки, нативный scroll-snap, единые скругления.
+   ============================================================ */
+
+.picker-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-space-1);
+  width: 100%;
+}
+
+.picker__year {
+  text-align: center;
+  font: var(--md-type-label-large);
+  color: var(--md-sys-color-on-surface-variant);
+  letter-spacing: 0.04em;
+  padding: var(--md-space-1) 0 0;
+}
+
+.picker {
+  --picker-item-h: 40px;
+  --picker-visible: 3;
+
+  display: grid;
+  grid-template-columns: 1fr 1.6fr 1fr 1fr;
+  gap: var(--md-space-2);
+  width: 100%;
+  padding: var(--md-space-2);
+  background: var(--md-sys-color-surface-container-low);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-corner-medium);
+}
+
+.picker__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-space-1);
+  min-width: 0;
+  border-radius: var(--md-shape-corner-medium);
+}
+
+.picker__label {
+  font: var(--md-type-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.picker__wheel {
+  position: relative;
+  height: calc(var(--picker-item-h) * var(--picker-visible));
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  border-radius: var(--md-shape-corner-medium);
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 0.55) 12%,
+    #000 35%,
+    #000 65%,
+    rgba(0, 0, 0, 0.55) 88%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 0.55) 12%,
+    #000 35%,
+    #000 65%,
+    rgba(0, 0, 0, 0.55) 88%,
+    transparent 100%
+  );
+}
+.picker__wheel::-webkit-scrollbar { display: none; }
+
+.picker__spacer {
+  height: calc(var(--picker-item-h) * 1);
+  pointer-events: none;
+}
+
+.picker__row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--picker-item-h);
+  width: 100%;
+  padding: 0 var(--md-space-1);
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-type-title-medium);
+  border-radius: var(--md-shape-corner-medium);
+  cursor: pointer;
+  scroll-snap-align: center;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.picker__row:hover {
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.picker__row--adj {
+  opacity: 0.6;
+  transform: scale(0.92);
+}
+
+.picker__row--adj:hover {
+  opacity: 0.85;
+  transform: scale(0.95);
+}
+
+.picker__row[aria-selected="true"],
+.picker__row.is-active {
+  color: var(--md-sys-color-on-primary-container);
+  background: var(--md-sys-color-primary-container);
+  opacity: 1;
+  transform: scale(1);
+  font: var(--md-type-title-medium);
+  box-shadow: var(--md-elevation-1, 0 1px 2px rgba(0,0,0,0.12));
+}
+
+.picker__hit {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--picker-item-h);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+.picker__hit--top    { top: 0; }
+.picker__hit--bottom { top: calc(var(--picker-item-h) * 2); }
+.picker__hit:hover   { background: transparent; }
+
+@media (max-width: 420px) {
+  .picker { grid-template-columns: 1fr 1.6fr 1fr 1fr; gap: var(--md-space-1); padding: var(--md-space-1); }
+  .picker__row { font: var(--md-type-title-small); }
+}
+
+/* ============================================================
+   Studio hint (только для категории studio, не блокирует бронь)
+   ============================================================ */
+
+.studio-hint {
+  font: var(--md-type-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container-low);
+  border-radius: var(--md-shape-corner-small);
+  padding: var(--md-space-1) var(--md-space-2);
+  margin-top: var(--md-space-1);
+}

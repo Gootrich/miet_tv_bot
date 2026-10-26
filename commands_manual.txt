@@ -1,0 +1,16 @@
+T2 (backend)
+
+cd ~/miet_tv_bot
+source .venv/bin/activate
+uvicorn app.api.main:app --host 127.0.0.1 --port 8000 --reload 2>&1 | tee /tmp/backend.log
+
+T3 (bot)
+
+cd ~/miet_tv_bot
+source .venv/bin/activate
+python -m app.main 2>&1 | tee /tmp/bot.log
+
+T4 (frontend)
+
+cd ~/miet_tv_bot/frontend
+npm run dev

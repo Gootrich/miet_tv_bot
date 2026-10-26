@@ -29,6 +29,7 @@ export interface EquipmentModelDetailOut extends EquipmentModelOut {
 
 export interface CategoryWithModelsOut {
   id: number;
+  code: string;
   name: string;
   description: string | null;
   models: EquipmentModelOut[];
@@ -39,6 +40,7 @@ export interface CatalogItem {
   modelId: number;
   title: string;
   category: string;
+  categoryCode: string;
   subtitle: string;
   icon: "camera" | "light" | "mic";
   trackingType: "individual" | "quantity";
@@ -47,6 +49,8 @@ export interface CatalogItem {
   freeUntil: string | null;
   nextBusyAt: string | null;
 }
+
+import { getAuthHeaders } from "./auth-helper";
 
 const API_BASE = "/api";
 
@@ -108,12 +112,13 @@ export function toCatalogItems(
         id: `model-${model.id}`,
         modelId: model.id,
         title: model.name,
-        category: categoryLabel(category.name),
+        category: category.name,
+        categoryCode: category.code,
         subtitle:
           model.manufacturer
             ? `${model.manufacturer}${model.description ? " · " + model.description : ""}`
             : (model.description ?? ""),
-        icon: iconForCategory(category.name),
+        icon: iconForCategory(category.code),
         trackingType: model.tracking_type,
         totalQuantity: model.total_quantity,
         availableNow: model.available_now,
@@ -137,35 +142,18 @@ const CATEGORY_ORDER: string[] = [
   "studio",
 ];
 
-// slug (name в БД) → человекочитаемое имя.
-const CATEGORY_LABELS: Record<string, string> = {
-  cameras:     "Камеры",
-  lenses:      "Оптика",
-  stabilizers: "Крепления",
-  lighting:    "Свет",
-  audio:       "Звук",
-  stands:      "Стойки",
-  power:       "Питание",
-  studio:      "Студия",
-};
-
-function categoryLabel(slug: string): string {
-  return CATEGORY_LABELS[slug] ?? slug;
-}
-
 export function categoryNames(
   categories: CategoryWithModelsOut[],
 ): string[] {
   const sorted = [...categories].sort((a, b) => {
-    const ia = CATEGORY_ORDER.indexOf(a.name);
-    const ib = CATEGORY_ORDER.indexOf(b.name);
-    // незнакомые — в конец, по алфавиту
+    const ia = CATEGORY_ORDER.indexOf(a.code);
+    const ib = CATEGORY_ORDER.indexOf(b.code);
     if (ia === -1 && ib === -1) return a.name.localeCompare(b.name);
     if (ia === -1) return 1;
     if (ib === -1) return -1;
     return ia - ib;
   });
-  return ["Все", ...sorted.map((c) => categoryLabel(c.name))];
+  return ["Все", ...sorted.map((c) => c.name)];
 }
 
 // --- Типы и функции для бронирования ---
@@ -191,27 +179,35 @@ export interface BookingOut {
   actual_return: string | null;
   status: string;
   comment: string | null;
+  created_at: string | null;
+  group_id: number | null;
+  // Денормализованные поля (Этап 2):
+  user_name: string | null;
+  model_name: string | null;
+  category_name: string | null;
+  item_inventory_number: string | null;
 }
 
-// Получение initData из Telegram WebApp (если доступно) или заглушка для разработки
-function getInitDataHeader(): string {
-  if (typeof window !== "undefined" && (window as any).Telegram?.WebApp?.initData) {
-    return (window as any).Telegram.WebApp.initData;
-  }
-  return ""; // В реальном Telegram Mini App здесь будет строка авторизации
+export interface BookingHistoryOut {
+  id: number;
+  booking_id: number;
+  actor_user_id: number | null;
+  event_type: "created" | "checkout" | "return" | "cancelled" | "moved" | string;
+  details: string | null;
+  created_at: string;
 }
 
-async function fetchJsonWithAuth<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const initData = getInitDataHeader();
+export async function fetchJsonWithAuth<T>(path: string, options: RequestInit = {}): Promise<T> {
+  // getAuthHeaders() из auth-helper:
+  // - в Telegram WebApp → x-telegram-init-data = реальный initData
+  // - в dev-режиме (Vite dev) → x-telegram-init-data = "dev-mode" + x-dev-user
+  //   = значение из localStorage["miet.devUser"], которое пишет DevUserSwitcher.
   const headers: Record<string, string> = {
     Accept: "application/json",
     "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
+    ...getAuthHeaders(),
+    ...((options.headers as Record<string, string> | undefined) ?? {}),
   };
-
-  if (initData) {
-    headers["x-telegram-init-data"] = initData;
-  }
 
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,

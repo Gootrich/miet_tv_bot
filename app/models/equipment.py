@@ -18,9 +18,14 @@ class Category(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
+    code: Mapped[str] = mapped_column(
+        String(32),
+        unique=True,
+        nullable=False,
+    )
+
     name: Mapped[str] = mapped_column(
         String(100),
-        unique=True,
         nullable=False,
     )
 

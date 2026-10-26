@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { createBooking, type CatalogItem } from "../api/catalog";
+import { DateTimeRangePicker, type DTRange } from "./DateTimeRangePicker";
+import { QuantityStepper } from "./QuantityStepper";
 
 const ICON: Record<CatalogItem["icon"], string> = {
   camera: "📷",
@@ -28,57 +30,56 @@ function availabilityLabel(item: CatalogItem): { text: string; kind: "ok" | "bus
       kind: "busy",
     };
   }
-  if (item.freeUntil) {
-    return { text: `Свободно ${formatFreeUntil(item.freeUntil)}`, kind: "ok" };
-  }
+  if (item.freeUntil) return { text: `Свободно ${formatFreeUntil(item.freeUntil)}`, kind: "ok" };
   return { text: `${available} из ${total}`, kind: "ok" };
+}
+
+function defaultRange(): DTRange {
+  const s = new Date();
+  s.setSeconds(0, 0);
+  const total = s.getHours() * 60 + s.getMinutes();
+  const up = Math.ceil((total + 1) / 15) * 15;
+  s.setHours(0, 0, 0, 0);
+  s.setMinutes(up);
+  const e = new Date(s.getTime() + 60 * 60 * 1000);
+  return { start: s.toISOString(), end: e.toISOString() };
 }
 
 export function EquipmentCard({
   item,
   showCategory = false,
+  selected = false,
+  onToggleSelect,
 }: {
   item: CatalogItem;
   showCategory?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (item: CatalogItem) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
+  const [dtRange, setDtRange] = useState<DTRange>({ start: null, end: null });
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const toLocalInput = (d: Date): string => {
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return (
-      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
-      `T${pad(d.getHours())}:${pad(d.getMinutes())}`
-    );
-  };
-
-  const setDurationHours = (hours: number) => {
-    const startDate = new Date();
-    const totalMinutes = startDate.getHours() * 60 + startDate.getMinutes();
-    const roundedUp = Math.ceil((totalMinutes + 1) / 15) * 15;
-    startDate.setHours(0, 0, 0, 0);
-    startDate.setMinutes(roundedUp);
-    const endDate = new Date(startDate.getTime() + hours * 60 * 60 * 1000);
-    setStart(toLocalInput(startDate));
-    setEnd(toLocalInput(endDate));
-  };
-
-  const handleOpen = () => {
+  const handleToggleOpen = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
     setOpen(true);
-    setDurationHours(2);
+    setDtRange(defaultRange());
+    setQuantity(1);
+    setComment("");
     setError(null);
     setSuccess(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!start || !end) {
+    if (!dtRange.start || !dtRange.end) {
       setError("Укажите время начала и окончания");
       return;
     }
@@ -88,8 +89,8 @@ export function EquipmentCard({
       await createBooking({
         model_id: item.modelId,
         quantity: Number(quantity),
-        planned_start: new Date(start).toISOString(),
-        planned_end: new Date(end).toISOString(),
+        planned_start: dtRange.start,
+        planned_end: dtRange.end,
         comment: comment ? comment : null,
       });
       setSuccess("Бронирование создано");
@@ -108,7 +109,7 @@ export function EquipmentCard({
       <button
         type="button"
         className="row-head"
-        onClick={handleOpen}
+        onClick={handleToggleOpen}
         aria-expanded={open}
       >
         <div className="row-head__main">
@@ -125,6 +126,29 @@ export function EquipmentCard({
           </span>
         </div>
         <span className="row-head__icon" aria-hidden="true">{ICON[item.icon]}</span>
+        {onToggleSelect && (
+          <span
+            role="button"
+            tabIndex={0}
+            className={`row-head__select${selected ? " is-selected" : ""}`}
+            aria-label={selected ? "Убрать из выбора" : "Добавить в выбор"}
+            aria-pressed={selected}
+            title={selected ? "Убрать из выбора" : "Добавить в выбор"}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect(item);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggleSelect(item);
+              }
+            }}
+          >
+            {selected ? "✓" : "+"}
+          </span>
+        )}
         <span className="row-head__chevron" aria-hidden="true">›</span>
       </button>
 
@@ -134,45 +158,27 @@ export function EquipmentCard({
         <form className="booking-form" onSubmit={handleSubmit}>
           {error && <div className="status-chip status-chip--error">{error}</div>}
 
-          <div className="preset-row">
-            <button type="button" className="preset" onClick={() => setDurationHours(2)}>+2 часа</button>
-            <button type="button" className="preset" onClick={() => setDurationHours(4)}>+4 часа</button>
-            <button type="button" className="preset" onClick={() => setDurationHours(24)}>Сутки</button>
-          </div>
+          <DateTimeRangePicker
+            variant="inline"
+            value={dtRange}
+            onChange={(next: DTRange) => setDtRange(next)}
+          />
 
-          <label className="field">
-            Начало:
-            <input
-              type="datetime-local"
-              step="900"
-              value={start}
-              onChange={(e) => setStart(e.target.value)}
-              required
-            />
-          </label>
+          {item.categoryCode === "studio" && (
+            <div className="studio-hint">
+              Студия: Пн–Сб 09:00–22:00, Вс — выходной (по согласованию)
+            </div>
+          )}
 
-          <label className="field">
-            Конец:
-            <input
-              type="datetime-local"
-              step="900"
-              value={end}
-              onChange={(e) => setEnd(e.target.value)}
-              required
-            />
-          </label>
-
-          <label className="field">
+          <div className="field">
             Количество:
-            <input
-              type="number"
-              min="1"
-              max={Math.max(1, item.totalQuantity)}
+            <QuantityStepper
               value={quantity}
-              onChange={(e) => setQuantity(Number(e.target.value))}
-              required
+              min={1}
+              max={Math.max(1, item.totalQuantity)}
+              onChange={setQuantity}
             />
-          </label>
+          </div>
 
           <label className="field">
             Комментарий:
@@ -184,16 +190,11 @@ export function EquipmentCard({
             />
           </label>
 
-          <div className="row-actions">
+          <div className="row-actions row-actions--split">
+            <button type="button" className="card__cta card__cta--secondary"
+              onClick={() => setOpen(false)}>Отмена</button>
             <button type="submit" className="card__cta" disabled={loading}>
               {loading ? "Отправка…" : "Подтвердить"}
-            </button>
-            <button
-              type="button"
-              className="empty__action"
-              onClick={() => setOpen(false)}
-            >
-              Отмена
             </button>
           </div>
         </form>
