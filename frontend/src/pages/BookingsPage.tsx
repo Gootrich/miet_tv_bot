@@ -6,6 +6,8 @@ import { ConfirmModal } from "../components/ConfirmModal";
 import { useToast } from "../components/Toast";
 import { ChipsRow, type ChipItem } from "../components/ChipsRow";
 import { DateTimeRangePicker, type DTRange } from "../components/DateTimeRangePicker";
+import { AuthRequired } from "../components/AuthRequired";
+import { isAuthError, type ApiError } from "../api/client";
 import {
   checkoutBooking,
   returnBooking,
@@ -53,12 +55,14 @@ const EVENT_CHIPS: ChipItem[] = [
 
 type LoadState =
   | { kind: "loading" }
+  | { kind: "auth"; error: ApiError }
   | { kind: "error"; message: string }
   | { kind: "ready"; bookings: BookingOut[] };
 
 type HistoryState =
   | { kind: "idle" }
   | { kind: "loading" }
+  | { kind: "auth"; error: ApiError }
   | { kind: "error"; message: string }
   | { kind: "ready"; events: import("../api/catalog").BookingHistoryOut[] };
 
@@ -191,11 +195,15 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
         const me = await fetchJsonWithAuth<{ id: number }>("/me");
         if (alive) setMeId(me.id);
       } catch (e) {
-        toast.error(
-          e instanceof Error
-            ? `Не удалось определить пользователя: ${e.message}`
-            : "Не удалось определить пользователя",
-        );
+        // Auth-ошибка (/me вернёт 401/403) не засоряет toast: тот же
+        // auth-экран покажет loadBookings. Toast — только для сетевых.
+        if (!isAuthError(e)) {
+          toast.error(
+            e instanceof Error
+              ? `Не удалось определить пользователя: ${e.message}`
+              : "Не удалось определить пользователя",
+          );
+        }
       }
     })();
     return () => { alive = false; };
@@ -224,9 +232,13 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
         setState({ kind: "ready", bookings: data });
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Ошибка загрузки броней";
-      setState({ kind: "error", message: msg });
-      toast.error(msg);
+      if (isAuthError(e)) {
+        setState({ kind: "auth", error: e });
+      } else {
+        const msg = e instanceof Error ? e.message : "Ошибка загрузки броней";
+        setState({ kind: "error", message: msg });
+        toast.error(msg);
+      }
     } finally {
       bookingsFetchingRef.current = false;
     }
@@ -254,9 +266,13 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
         setHistory({ kind: "ready", events: data });
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Ошибка загрузки истории";
-      setHistory({ kind: "error", message: msg });
-      toast.error(msg);
+      if (isAuthError(e)) {
+        setHistory({ kind: "auth", error: e });
+      } else {
+        const msg = e instanceof Error ? e.message : "Ошибка загрузки истории";
+        setHistory({ kind: "error", message: msg });
+        toast.error(msg);
+      }
     } finally {
       setHistoryBusy(false);
     }
@@ -565,6 +581,12 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
           </label>
         )}
 
+        {tab !== "history" && state.kind === "auth" && (
+          <AuthRequired
+            error={state.error}
+            onRetry={() => loadBookings("replace")}
+          />
+        )}
         {tab !== "history" && state.kind === "loading" && (
           <p className="empty__text">Загрузка…</p>
         )}
@@ -758,6 +780,12 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
             <ChipsRow items={EVENT_CHIPS} value={historyEvent}
               onChange={(code) => setHistoryEvent(code as EventFilter)} ariaLabel="Тип события" />
 
+            {history.kind === "auth" && (
+              <AuthRequired
+                error={history.error}
+                onRetry={() => loadHistory("replace")}
+              />
+            )}
             {history.kind === "loading" && <p className="empty__text">Загрузка истории…</p>}
             {history.kind === "error" && (
               <div className="empty">

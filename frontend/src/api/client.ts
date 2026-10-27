@@ -56,3 +56,8 @@ export async function apiFetch<T>(
   }
   return (await response.json()) as T;
 }
+
+/** 401/403 — пользователь не авторизован или лишён доступа. */
+export function isAuthError(e: unknown): e is ApiError {
+  return e instanceof ApiError && (e.status === 401 || e.status === 403);
+}

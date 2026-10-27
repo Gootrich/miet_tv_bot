@@ -63,42 +63,16 @@ export interface CatalogItem {
   nextBusyAt: string | null;
 }
 
-import { getAuthHeaders } from "./auth-helper";
+import { apiFetch, ApiError } from "./client";
 
-const API_BASE = "/api";
-
-export class ApiError extends Error {
-  readonly status: number;
-
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-  }
-}
-
-async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: { Accept: "application/json" },
-  });
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new ApiError(
-      response.status,
-      `API ${response.status} ${response.statusText}: ${text.slice(0, 200)}`,
-    );
-  }
-  return (await response.json()) as T;
-}
+export { ApiError };
 
 export function fetchCatalog(): Promise<CategoryWithModelsOut[]> {
-  return fetchJson<CategoryWithModelsOut[]>("/catalog");
+  return apiFetch<CategoryWithModelsOut[]>("/catalog");
 }
 
 export function fetchModel(id: number): Promise<EquipmentModelDetailResponse> {
-  return fetchJsonWithAuth<EquipmentModelDetailResponse>(
-    `/catalog/models/${id}`,
-  );
+  return apiFetch<EquipmentModelDetailResponse>(`/catalog/models/${id}`);
 }
 
 // Пиктограмма по категории — временная эвристика до появления поля icon в БД.
@@ -212,31 +186,8 @@ export interface BookingHistoryOut {
   created_at: string;
 }
 
-export async function fetchJsonWithAuth<T>(path: string, options: RequestInit = {}): Promise<T> {
-  // getAuthHeaders() из auth-helper:
-  // - в Telegram WebApp → x-telegram-init-data = реальный initData
-  // - в dev-режиме (Vite dev) → x-telegram-init-data = "dev-mode" + x-dev-user
-  //   = значение из localStorage["miet.devUser"], которое пишет DevUserSwitcher.
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    "Content-Type": "application/json",
-    ...getAuthHeaders(),
-    ...((options.headers as Record<string, string> | undefined) ?? {}),
-  };
-
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new ApiError(
-      response.status,
-      `API ${response.status} ${response.statusText}: ${text.slice(0, 200)}`,
-    );
-  }
-  return (await response.json()) as T;
+export function fetchJsonWithAuth<T>(path: string, options: RequestInit = {}): Promise<T> {
+  return apiFetch<T>(path, options);
 }
 
 export function createBooking(data: BookingRequest): Promise<BookingOut> {

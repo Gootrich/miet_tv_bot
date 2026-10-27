@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BottomNav } from "../components/BottomNav";
 import { TopBar } from "../components/TopBar";
 import { AdminSection } from "../components/AdminSection";
+import { AuthRequired } from "../components/AuthRequired";
 import { fetchMe, type UserOut } from "../api/admin";
 import { ApiError } from "../api/client";
 
@@ -21,6 +22,7 @@ type State =
   | { kind: "loading" }
   | { kind: "me"; me: UserOut }
   | { kind: "blocked"; reason: string }
+  | { kind: "auth"; error: ApiError }
   | { kind: "error"; message: string };
 
 export function ProfilePage({
@@ -29,6 +31,7 @@ export function ProfilePage({
   onNavigate: (tab: string) => void;
 }) {
   const [state, setState] = useState<State>({ kind: "loading" });
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +47,8 @@ export function ProfilePage({
             kind: "blocked",
             reason: e.message || "Доступ ограничен.",
           });
+        } else if (e instanceof ApiError && e.status === 401) {
+          setState({ kind: "auth", error: e });
         } else if (e instanceof ApiError) {
           setState({ kind: "error", message: e.message });
         } else {
@@ -55,7 +60,7 @@ export function ProfilePage({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [retryTick]);
 
   const isAdminScope =
     state.kind === "me" &&
@@ -83,6 +88,16 @@ export function ProfilePage({
             <h2 className="card__title">Доступ ограничен</h2>
             <p className="card__subtitle">{state.reason}</p>
           </div>
+        )}
+
+        {state.kind === "auth" && (
+          <AuthRequired
+            error={state.error}
+            onRetry={() => {
+              setState({ kind: "loading" });
+              setRetryTick((n) => n + 1);
+            }}
+          />
         )}
 
         {state.kind === "me" && (
