@@ -606,6 +606,50 @@ async def test_cancel_group_empty_noop(
         assert cancelled == []
 
 
+async def test_mutation_returns_full_detail_for_old_booking(
+    booking_session_factory: dict,
+) -> None:
+    """M-4/M-9: cancel старой брони возвращает model_name/user_name.
+
+    Регрессия: раньше ответ строился из get_bookings(limit=20/100),
+    старая бронь не попадала в выборку → model_name=None, user_name=None.
+    Здесь создаём 200 шумовых броней, мутируем самую старую по id.
+    """
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+
+    async with factory() as session:
+        for bid in ctx["booking_ids"]:
+            b = await session.get(Booking, bid)
+            b.actual_checkout = None
+        await session.commit()
+
+    async with factory() as session:
+        for _ in range(200):
+            session.add(Booking(
+                user_id=ctx["user_id"], model_id=1, quantity=1,
+                planned_start=datetime(2030, 6, 1, tzinfo=timezone.utc),
+                planned_end=datetime(2030, 6, 2, tzinfo=timezone.utc),
+                status="pending",
+            ))
+        await session.commit()
+
+    oldest_id = min(ctx["booking_ids"])
+    async with factory() as session:
+        user = await session.get(User, ctx["user_id"])
+        cancelled = await booking_service.cancel_booking(
+            session, oldest_id, user, is_admin=False,
+        )
+        detailed = await booking_service.get_booking_by_id(
+            session, cancelled.id,
+        )
+        assert detailed is not None
+        assert detailed.user is not None
+        assert detailed.user.full_name == "Test User"
+        assert detailed.model is not None
+        assert detailed.model.name == "Test Model"
+
+
 async def test_cancel_group_not_owner(
     booking_session_factory: dict,
 ) -> None:

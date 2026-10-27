@@ -663,6 +663,62 @@ async def get_bookings(
     return list(result.scalars().unique().all())
 
 
+async def get_booking_by_id(
+    session: AsyncSession, booking_id: int,
+) -> Booking | None:
+    """Одна бронь с eager-loaded relationships.
+
+    Для мутационных эндпоинтов (M-4/M-9): после сервисного вызова нужно
+    вернуть изменённую бронь с user/model.category/item. Использовать
+    get_bookings(... limit=N) + фильтр нельзя: старая бронь не попадёт
+    в первые N записей, response получит model_name=null и т.п.
+    """
+    from sqlalchemy.orm import selectinload
+
+    stmt = (
+        select(Booking)
+        .where(Booking.id == booking_id)
+        .options(
+            selectinload(Booking.user),
+            selectinload(Booking.model).selectinload(
+                EquipmentModel.category
+            ),
+            selectinload(Booking.item),
+        )
+    )
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def get_bookings_by_ids(
+    session: AsyncSession, booking_ids: list[int],
+) -> list[Booking]:
+    """Несколько броней по списку id с relationships, в порядке ids.
+
+    Для групповых мутаций (return-all/return-partial/cancel-group и
+    create-batch): нужен ответ с полными деталями для всех возвращённых
+    броней, включая старые, которые не попадают в get_bookings limit=N.
+    """
+    if not booking_ids:
+        return []
+    from sqlalchemy.orm import selectinload
+
+    stmt = (
+        select(Booking)
+        .where(Booking.id.in_(booking_ids))
+        .options(
+            selectinload(Booking.user),
+            selectinload(Booking.model).selectinload(
+                EquipmentModel.category
+            ),
+            selectinload(Booking.item),
+        )
+    )
+    result = await session.execute(stmt)
+    by_id = {b.id: b for b in result.scalars().unique().all()}
+    return [by_id[i] for i in booking_ids if i in by_id]
+
+
 # ============================================================
 # Этап 2+ (D): пакетная модель (group_id)
 # ============================================================

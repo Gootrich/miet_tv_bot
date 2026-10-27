@@ -140,20 +140,9 @@ async def create_booking_endpoint(
         )
         created = [single]
 
-    # Перечитываем через get_bookings для selectinload relationships
-    ids = {b.id for b in created}
-    detailed = await booking_service.get_bookings(
-        session=session,
-        user_id=current_user.id,
-        is_admin=True,
-        include_cancelled=True,
-        limit=100,
-    )
-    by_id = {b.id: b for b in detailed if b.id in ids}
-    return [
-        BookingOut.from_orm_booking(by_id.get(b.id, b))
-        for b in sorted(created, key=lambda x: x.id)
-    ]
+    ids = [b.id for b in sorted(created, key=lambda x: x.id)]
+    detailed = await booking_service.get_bookings_by_ids(session, ids)
+    return [BookingOut.from_orm_booking(b) for b in detailed]
 
 
 @router.post("/bookings/{booking_id}/add", response_model=BookingOut)
@@ -170,15 +159,8 @@ async def add_to_booking_endpoint(
         model_id=payload.model_id,
         quantity=payload.quantity,
     )
-    detailed = await booking_service.get_bookings(
-        session=session,
-        user_id=current_user.id,
-        is_admin=True,
-        include_cancelled=True,
-        limit=100,
-    )
-    found = next((x for x in detailed if x.id == b.id), None)
-    return BookingOut.from_orm_booking(found or b)
+    detailed = await booking_service.get_booking_by_id(session, b.id)
+    return BookingOut.from_orm_booking(detailed or b)
 
 
 @router.post(
@@ -197,16 +179,10 @@ async def return_all_in_group_endpoint(
     )
     if not returned:
         return []
-    ids = {b.id for b in returned}
-    detailed = await booking_service.get_bookings(
-        session=session,
-        user_id=current_user.id,
-        is_admin=True,
-        include_cancelled=True,
-        limit=100,
+    detailed = await booking_service.get_bookings_by_ids(
+        session, [b.id for b in returned],
     )
-    by_id = {b.id: b for b in detailed if b.id in ids}
-    return [BookingOut.from_orm_booking(by_id.get(b.id, b)) for b in returned]
+    return [BookingOut.from_orm_booking(b) for b in detailed]
 
 
 @router.post(
@@ -226,16 +202,10 @@ async def cancel_group_endpoint(
     )
     if not cancelled:
         return []
-    ids = {b.id for b in cancelled}
-    detailed = await booking_service.get_bookings(
-        session=session,
-        user_id=current_user.id,
-        is_admin=True,
-        include_cancelled=True,
-        limit=100,
+    detailed = await booking_service.get_bookings_by_ids(
+        session, [b.id for b in cancelled],
     )
-    by_id = {b.id: b for b in detailed if b.id in ids}
-    return [BookingOut.from_orm_booking(by_id.get(b.id, b)) for b in cancelled]
+    return [BookingOut.from_orm_booking(b) for b in detailed]
 
 
 @router.post(
@@ -256,16 +226,10 @@ async def return_partial_in_group_endpoint(
     )
     if not returned:
         return []
-    ids = {b.id for b in returned}
-    detailed = await booking_service.get_bookings(
-        session=session,
-        user_id=current_user.id,
-        is_admin=True,
-        include_cancelled=True,
-        limit=100,
+    detailed = await booking_service.get_bookings_by_ids(
+        session, [b.id for b in returned],
     )
-    by_id = {b.id: b for b in detailed if b.id in ids}
-    return [BookingOut.from_orm_booking(by_id.get(b.id, b)) for b in returned]
+    return [BookingOut.from_orm_booking(b) for b in detailed]
 
 
 @router.get("/bookings", response_model=list[BookingOut])
@@ -319,16 +283,8 @@ async def checkout_booking_endpoint(
         user_id=current_user.id,
         is_admin=current_user.is_admin,
     )
-    # Перечитываем через get_bookings, чтобы подгрузить relationships
-    # для from_orm_booking (user/model/category/item).
-    detailed = await booking_service.get_bookings(
-        session=session,
-        user_id=current_user.id,
-        is_admin=True,          # внутренний read без фильтров
-        include_cancelled=True,
-    )
-    found = next((b for b in detailed if b.id == booking.id), None)
-    return BookingOut.from_orm_booking(found or booking)
+    detailed = await booking_service.get_booking_by_id(session, booking.id)
+    return BookingOut.from_orm_booking(detailed or booking)
 
 
 @router.post("/bookings/{booking_id}/return", response_model=BookingOut)
@@ -343,14 +299,8 @@ async def return_booking_endpoint(
         user_id=current_user.id,
         is_admin=current_user.is_admin,
     )
-    detailed = await booking_service.get_bookings(
-        session=session,
-        user_id=current_user.id,
-        is_admin=True,
-        include_cancelled=True,
-    )
-    found = next((b for b in detailed if b.id == booking.id), None)
-    return BookingOut.from_orm_booking(found or booking)
+    detailed = await booking_service.get_booking_by_id(session, booking.id)
+    return BookingOut.from_orm_booking(detailed or booking)
 
 
 @router.post("/bookings/{booking_id}/cancel", response_model=BookingOut)
@@ -365,14 +315,8 @@ async def cancel_booking_endpoint(
         user=current_user,
         is_admin=current_user.is_admin,
     )
-    detailed = await booking_service.get_bookings(
-        session=session,
-        user_id=current_user.id,
-        is_admin=True,
-        include_cancelled=True,
-    )
-    found = next((b for b in detailed if b.id == booking.id), None)
-    return BookingOut.from_orm_booking(found or booking)
+    detailed = await booking_service.get_booking_by_id(session, booking.id)
+    return BookingOut.from_orm_booking(detailed or booking)
 
 
 @router.patch("/bookings/{booking_id}", response_model=BookingOut)
@@ -389,14 +333,8 @@ async def move_booking_endpoint(
         new_start=payload.planned_start,
         new_end=payload.planned_end,
     )
-    detailed = await booking_service.get_bookings(
-        session=session,
-        user_id=current_user.id,
-        is_admin=True,
-        include_cancelled=True,
-    )
-    found = next((b for b in detailed if b.id == booking.id), None)
-    return BookingOut.from_orm_booking(found or booking)
+    detailed = await booking_service.get_booking_by_id(session, booking.id)
+    return BookingOut.from_orm_booking(detailed or booking)
 
 
 @router.get(
