@@ -119,7 +119,9 @@ async def list_categories_with_models(
     result = await session.execute(
         select(Category)
         .order_by(Category.name)
-        .options(selectinload(Category.models))
+        .options(
+            selectinload(Category.models).selectinload(EquipmentModel.items),
+        )
     )
     categories = list(result.scalars().unique().all())
 
