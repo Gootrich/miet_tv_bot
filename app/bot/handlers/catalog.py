@@ -63,6 +63,11 @@ async def cmd_catalog(message: Message) -> None:
 
 @router.callback_query(F.data == "catalog:root")
 async def show_categories(callback: CallbackQuery) -> None:
+    if callback.from_user is None or not await _ensure_active(callback.from_user.id):
+        await callback.answer(
+            "Доступ только для одобренных пользователей.", show_alert=True,
+        )
+        return
     async with AsyncSessionFactory() as session:
         categories = await list_categories(session)
 
@@ -85,6 +90,11 @@ async def show_categories(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.startswith("catalog:cat:"))
 async def show_models(callback: CallbackQuery) -> None:
+    if callback.from_user is None or not await _ensure_active(callback.from_user.id):
+        await callback.answer(
+            "Доступ только для одобренных пользователей.", show_alert=True,
+        )
+        return
     category_id = int(callback.data.split(":")[2])
     async with AsyncSessionFactory() as session:
         models = await list_models_by_category(session, category_id)
@@ -108,6 +118,11 @@ async def show_models(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.startswith("catalog:model:"))
 async def show_model_card(callback: CallbackQuery) -> None:
+    if callback.from_user is None or not await _ensure_active(callback.from_user.id):
+        await callback.answer(
+            "Доступ только для одобренных пользователей.", show_alert=True,
+        )
+        return
     model_id = int(callback.data.split(":")[2])
     async with AsyncSessionFactory() as session:
         model = await get_model_with_items(session, model_id)

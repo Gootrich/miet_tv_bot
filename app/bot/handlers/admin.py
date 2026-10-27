@@ -1,4 +1,5 @@
 import logging
+from html import escape
 
 from aiogram import Router
 from aiogram.filters import Command, CommandObject
@@ -19,6 +20,8 @@ from app.services.users import (
 
 logger = logging.getLogger(__name__)
 router = Router()
+
+PARSE_HTML = "HTML"
 
 
 async def _is_users_admin(telegram_id: int) -> bool:
@@ -80,9 +83,10 @@ async def cmd_pending(message: Message) -> None:
             continue
         lines.append(
             f"• [{CLUB_LABELS.get(r.club_code, r.club_code)}] "
-            f"<code>{u.telegram_id}</code> — {u.full_name} (@{u.username or '—'})"
+            f"<code>{u.telegram_id}</code> — {escape(u.full_name)} "
+            f"(@{escape(u.username or '—')})"
         )
-    await message.answer("\n".join(lines))
+    await message.answer("\n".join(lines), parse_mode=PARSE_HTML)
 
 
 @router.message(Command("users"))
@@ -96,9 +100,10 @@ async def cmd_users(message: Message) -> None:
     for u in users[:50]:
         roles = ",".join(u.role_codes()) or "—"
         lines.append(
-            f"• <code>{u.telegram_id}</code> {u.full_name} — {u.status} [{roles}]"
+            f"• <code>{u.telegram_id}</code> {escape(u.full_name)} — "
+            f"{u.status} [{escape(roles)}]"
         )
-    await message.answer("\n".join(lines))
+    await message.answer("\n".join(lines), parse_mode=PARSE_HTML)
 
 
 @router.message(Command("block"))
@@ -110,7 +115,8 @@ async def cmd_block(message: Message, command: CommandObject) -> None:
         await message.answer(
             "Формат: <code>/block &lt;telegram_id&gt; &lt;часы|0&gt; &lt;причина&gt;</code>\n"
             "Пример: <code>/block 123456789 24 нарушение правил</code>\n"
-            "<code>0</code> — бессрочно."
+            "<code>0</code> — бессрочно.",
+            parse_mode=PARSE_HTML,
         )
         return
     parts = command.args.split(maxsplit=2)
@@ -131,6 +137,15 @@ async def cmd_block(message: Message, command: CommandObject) -> None:
             if target is None:
                 await message.answer("Пользователь не найден.")
                 return
+            if message.from_user is not None and target.telegram_id == message.from_user.id:
+                await message.answer("Нельзя заблокировать самого себя.")
+                return
+            if target.telegram_id in settings.admin_ids:
+                await message.answer(
+                    "Нельзя заблокировать администратора через бота. "
+                    "Используйте другой канал управления."
+                )
+                return
             user = await block_user(
                 session,
                 user_id=target.id,
@@ -138,9 +153,11 @@ async def cmd_block(message: Message, command: CommandObject) -> None:
                 reason=reason,
             )
     await message.answer(
-        f"🚫 Заблокирован: {user.full_name} (<code>{user.telegram_id}</code>)\n"
+        f"🚫 Заблокирован: {escape(user.full_name)} "
+        f"(<code>{user.telegram_id}</code>)\n"
         f"До: {user.blocked_until or 'бессрочно'}\n"
-        f"Причина: {user.block_reason}"
+        f"Причина: {escape(user.block_reason or '')}",
+        parse_mode=PARSE_HTML,
     )
 
 
@@ -150,7 +167,10 @@ async def cmd_unblock(message: Message, command: CommandObject) -> None:
         await message.answer("Нет прав.")
         return
     if not command.args:
-        await message.answer("Формат: <code>/unblock &lt;telegram_id&gt;</code>")
+        await message.answer(
+            "Формат: <code>/unblock &lt;telegram_id&gt;</code>",
+            parse_mode=PARSE_HTML,
+        )
         return
     try:
         tg_id = int(command.args.strip())
@@ -164,4 +184,7 @@ async def cmd_unblock(message: Message, command: CommandObject) -> None:
                 await message.answer("Пользователь не найден.")
                 return
             user = await unblock_user(session, user_id=target.id)
-    await message.answer(f"✅ Разблокирован: {user.full_name}")
+    await message.answer(
+        f"✅ Разблокирован: {escape(user.full_name)}",
+        parse_mode=PARSE_HTML,
+    )
