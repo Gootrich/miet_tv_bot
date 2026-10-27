@@ -223,6 +223,36 @@ async def get_current_user(
     return user
 
 
+async def get_optional_approved_user(
+    x_telegram_init_data: str | None = Header(
+        None, description="Telegram WebApp initData"
+    ),
+    x_dev_user: str | None = Header(
+        None, description="Dev: выбор роли (superadmin|miettv_head|...)"
+    ),
+    session: AsyncSession = Depends(get_session),
+) -> User | None:
+    """Опциональная аутентификация для публичных эндпоинтов.
+
+    Возвращает User со status='active', если initData/dev-заголовки
+    валидны; иначе None. Никогда не выбрасывает 401/403: публичный
+    просмотр не должен ломаться из-за отсутствия авторизации.
+    """
+    if not x_telegram_init_data and not x_dev_user:
+        return None
+    try:
+        user = await get_current_user(
+            x_telegram_init_data=x_telegram_init_data,
+            x_dev_user=x_dev_user,
+            session=session,
+        )
+    except HTTPException:
+        return None
+    if user.status != "active":
+        return None
+    return user
+
+
 def require_scope(*scopes: str):
     """Фабрика зависимости: пропускает, если у user есть admin:super
     или хотя бы один из указанных scopes.

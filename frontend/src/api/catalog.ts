@@ -1,12 +1,15 @@
 // Тонкий клиент к read-only API каталога.
 // Типы повторяют Pydantic-схемы в app/api/schemas.py.
 
-export interface EquipmentItemOut {
+export interface EquipmentItemPublicOut {
   id: number;
-  inventory_number: string;
-  serial_number: string | null;
   status: "active" | "maintenance" | "retired";
-  notes: string | null;
+}
+
+export interface EquipmentItemOut extends EquipmentItemPublicOut {
+  inventory_number?: string;
+  serial_number?: string | null;
+  notes?: string | null;
 }
 
 export interface EquipmentModelOut {
@@ -23,9 +26,19 @@ export interface EquipmentModelOut {
   next_busy_at: string | null;
 }
 
+export interface EquipmentModelDetailPublicOut extends EquipmentModelOut {
+  view: "public";
+  items: EquipmentItemPublicOut[];
+}
+
 export interface EquipmentModelDetailOut extends EquipmentModelOut {
+  view: "admin";
   items: EquipmentItemOut[];
 }
+
+export type EquipmentModelDetailResponse =
+  | EquipmentModelDetailPublicOut
+  | EquipmentModelDetailOut;
 
 export interface CategoryWithModelsOut {
   id: number;
@@ -82,8 +95,10 @@ export function fetchCatalog(): Promise<CategoryWithModelsOut[]> {
   return fetchJson<CategoryWithModelsOut[]>("/catalog");
 }
 
-export function fetchModel(id: number): Promise<EquipmentModelDetailOut> {
-  return fetchJson<EquipmentModelDetailOut>(`/catalog/models/${id}`);
+export function fetchModel(id: number): Promise<EquipmentModelDetailResponse> {
+  return fetchJsonWithAuth<EquipmentModelDetailResponse>(
+    `/catalog/models/${id}`,
+  );
 }
 
 // Пиктограмма по категории — временная эвристика до появления поля icon в БД.

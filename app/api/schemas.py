@@ -5,20 +5,26 @@ ORM-моделями. Внутренние поля (например, telegram_
 """
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 
 
-class EquipmentItemOut(BaseModel):
-    """Физический экземпляр оборудования."""
+class EquipmentItemPublicOut(BaseModel):
+    """Публичное представление экземпляра: без inventory/serial/notes."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    status: str = Field(description="active | maintenance | retired")
+
+
+class EquipmentItemOut(EquipmentItemPublicOut):
+    """Полное представление экземпляра — только для одобренных участников."""
+
     inventory_number: str
     serial_number: str | None = None
-    status: str = Field(description="active | maintenance | retired")
     notes: str | None = None
 
 
@@ -42,9 +48,17 @@ class EquipmentModelOut(BaseModel):
     )
 
 
-class EquipmentModelDetailOut(EquipmentModelOut):
-    """Модель оборудования с физическими экземплярами."""
+class EquipmentModelDetailPublicOut(EquipmentModelOut):
+    """Публичный взгляд на модель: без inventory/serial/notes в items."""
 
+    view: Literal["public"] = "public"
+    items: list[EquipmentItemPublicOut] = Field(default_factory=list)
+
+
+class EquipmentModelDetailOut(EquipmentModelOut):
+    """Модель с экземплярами — только для одобренных участников."""
+
+    view: Literal["admin"] = "admin"
     items: list[EquipmentItemOut] = Field(default_factory=list)
 
 

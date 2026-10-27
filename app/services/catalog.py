@@ -87,11 +87,21 @@ async def _compute_availability(
 
         if m.tracking_type == "quantity":
             total = m.total_quantity or 0
+            bookable_capacity = total
         else:
-            # individual: пока экземпляров нет — считаем 1 доступный слот
-            total = max(1, len(m.items) if getattr(m, "items", None) else 1)
+            items = getattr(m, "items", None) or []
+            if not items:
+                # Legacy: no instances registered yet — assume 1 slot.
+                total = 1
+                bookable_capacity = 1
+            else:
+                # H-4: retired items are permanently gone — excluded from
+                # total. Maintenance items are owned but not bookable, so
+                # they contribute to total but not to bookable capacity.
+                total = sum(1 for i in items if i.status != "retired")
+                bookable_capacity = sum(1 for i in items if i.status == "active")
 
-        available_now = max(0, total - booked_now_qty)
+        available_now = max(0, bookable_capacity - booked_now_qty)
 
         out[m.id] = {
             "available_now": available_now,

@@ -1,12 +1,15 @@
 """HTTP-маршруты API: каталог, брони, пользователи, админка."""
 
 from datetime import datetime
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
     get_current_user,
+    get_optional_approved_user,
     require_admin,
     require_any_registration_manager,
     require_users_admin,
@@ -34,6 +37,7 @@ from app.api.schemas import (
     AssignRoleRequest,
     RoleOut,
     EquipmentModelDetailOut,
+    EquipmentModelDetailPublicOut,
     HealthOut,
     RegistrationRequestOut,
     RejectRequestPayload,
@@ -75,12 +79,24 @@ async def get_catalog(session: AsyncSession = Depends(get_session)):
     return await catalog_service.list_categories_with_models(session)
 
 
-@router.get("/catalog/models/{model_id}", response_model=EquipmentModelDetailOut)
-async def get_model(model_id: int, session: AsyncSession = Depends(get_session)):
+@router.get(
+    "/catalog/models/{model_id}",
+    response_model=Annotated[
+        EquipmentModelDetailPublicOut | EquipmentModelDetailOut,
+        Field(discriminator="view"),
+    ],
+)
+async def get_model(
+    model_id: int,
+    optional_user: User | None = Depends(get_optional_approved_user),
+    session: AsyncSession = Depends(get_session),
+):
     model = await catalog_service.get_model_with_items(session, model_id)
     if model is None:
         raise HTTPException(status_code=404, detail="model not found")
-    return model
+    if optional_user is not None:
+        return EquipmentModelDetailOut.model_validate(model)
+    return EquipmentModelDetailPublicOut.model_validate(model)
 
 
 # --- Me ---
