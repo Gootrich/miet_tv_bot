@@ -148,29 +148,6 @@ textarea {
 
 /* ---------- category chips ---------- */
 
-.chips-row {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--md-space-2);
-  width: 100%;
-}
-
-.chips-scroll {
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: var(--md-space-1);
-  scroll-behavior: smooth;
-}
-
-.chips-scroll::-webkit-scrollbar {
-  display: none;
-}
-
 .chips-arrow {
   flex: 0 0 auto;
   width: 28px;
@@ -187,16 +164,6 @@ textarea {
   z-index: 2;
   transition: color 120ms ease, transform 120ms ease;
   /* стрелка рисуется «над» градиентом, но фон — прозрачный */
-}
-
-.chips-arrow:hover {
-  color: var(--md-sys-color-primary);
-  transform: scale(1.1);
-}
-
-.chips-arrow:focus-visible {
-  outline: 2px solid var(--md-sys-color-primary);
-  outline-offset: 2px;
 }
 
 /* Псевдоэлементы-градиенты по краям.
@@ -296,6 +263,7 @@ textarea {
 .chips-arrow:hover {
   background: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);
+  transform: scale(1.1);
 }
 
 .chips-arrow:focus-visible {
@@ -3112,4 +3080,13 @@ option:checked {
   .occ-week__day { min-height: 60px; padding: 7px 3px 6px; }
   .occ-week__day-num { font-size: 18px; }
   .occ-week__day-wd { font-size: 10px; }
+}
+
+/* ---------- narrow screens (320px) ---------- */
+@media (max-width: 320px) {
+  .thumb { width: 40px; height: 40px; font-size: 18px; }
+  .top-bar__icon { width: 40px; height: 40px; font-size: 18px; }
+  .chips-arrow { width: 24px; height: 24px; font-size: 16px; }
+  .card { padding: var(--md-space-2); }
+  .card__cta { padding: var(--md-space-2) var(--md-space-3); }
 }
