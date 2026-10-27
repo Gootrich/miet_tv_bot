@@ -2,15 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { BottomNav } from "../components/BottomNav";
 import { MultiSelectDropdown } from "../components/MultiSelectDropdown";
 import { OccupancyWeekGrid } from "../components/OccupancyWeekGrid";
-import { OccupancyDayGrid, type DayRow } from "../components/OccupancyDayGrid";
+import { OccupancyMonthGrid } from "../components/OccupancyMonthGrid";
+import { OccupancyDayDetails } from "../components/OccupancyDayDetails";
 import { TopBar } from "../components/TopBar";
 import {
   fetchCatalog,
-  type BookingOut,
   type CategoryWithModelsOut,
   type EquipmentModelOut,
 } from "../api/catalog";
-import { fetchBookings } from "../api/bookings";
 import {
   addDays,
   formatDayMonth,
@@ -19,23 +18,14 @@ import {
   startOfWeekMonday,
   weekdayShort,
 } from "../utils/date";
+import { useOccupancyBookings } from "../hooks/useOccupancyBookings";
 
 type CatalogState =
   | { kind: "loading" }
   | { kind: "error"; message: string }
   | { kind: "ready"; categories: CategoryWithModelsOut[] };
 
-type BookingsState =
-  | { kind: "idle" }
-  | { kind: "loading" }
-  | { kind: "error"; message: string }
-  | { kind: "ready"; bookings: BookingOut[] };
-
-type View = "week" | "day";
-type DayMode = "model" | "category";
-
-const FETCH_LIMIT = 100;
-const FETCH_MAX_PAGES = 10;
+type View = "month" | "week" | "day";
 
 const LS_CATEGORIES = "miet.occ.categories";
 const LS_MODELS = "miet.occ.models";
@@ -59,13 +49,26 @@ function writeIds(key: string, set: Set<number>): void {
   }
 }
 
+function monthFirst(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+function addMonths(d: Date, n: number): Date {
+  return new Date(d.getFullYear(), d.getMonth() + n, 1);
+}
+function formatMonthYear(d: Date): string {
+  const months = [
+    "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+    "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
+  ];
+  return `${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 export function OccupancyPage({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const [catalog, setCatalog] = useState<CatalogState>({ kind: "loading" });
-  const [bookings, setBookings] = useState<BookingsState>({ kind: "idle" });
   const [view, setView] = useState<View>("week");
-  const [dayMode, setDayMode] = useState<DayMode>("model");
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeekMonday(new Date()));
-  const [dayStart, setDayStart] = useState<Date>(() => startOfDay(new Date()));
+  const [selectedDay, setSelectedDay] = useState<Date>(() => startOfDay(new Date()));
+  const [monthStart, setMonthStart] = useState<Date>(() => monthFirst(new Date()));
   const [selectedCategories, setSelectedCategories] = useState<Set<number>>(() =>
     readIds(LS_CATEGORIES),
   );
@@ -91,55 +94,28 @@ export function OccupancyPage({ onNavigate }: { onNavigate: (tab: string) => voi
     };
   }, []);
 
-  // Persist selection as "favorites"
   useEffect(() => writeIds(LS_CATEGORIES, selectedCategories), [selectedCategories]);
   useEffect(() => writeIds(LS_MODELS, selectedModels), [selectedModels]);
 
   const range = useMemo(() => {
-    const from = view === "week" ? weekStart : dayStart;
-    const days = view === "week" ? 7 : 1;
-    return { from, to: addDays(from, days) };
-  }, [view, weekStart, dayStart]);
+    if (view === "month") {
+      const from = new Date(monthStart.getFullYear(), monthStart.getMonth(), 1);
+      const to = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 2);
+      return { from, to };
+    }
+    if (view === "week") {
+      return { from: weekStart, to: addDays(weekStart, 7) };
+    }
+    return { from: selectedDay, to: addDays(selectedDay, 1) };
+  }, [view, monthStart, weekStart, selectedDay]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setBookings({ kind: "loading" });
-    (async () => {
-      try {
-        const collected: BookingOut[] = [];
-        let beforeId: number | undefined;
-        for (let page = 0; page < FETCH_MAX_PAGES; page++) {
-          const chunk = await fetchBookings({
-            scope: "all",
-            status: "pending,confirmed",
-            fromDt: range.from.toISOString(),
-            toDt: range.to.toISOString(),
-            limit: FETCH_LIMIT,
-            beforeId,
-          });
-          if (cancelled) return;
-          collected.push(...chunk);
-          if (chunk.length < FETCH_LIMIT) break;
-          const minId = chunk.reduce((m, b) => (b.id < m ? b.id : m), chunk[0].id);
-          beforeId = minId;
-        }
-        setBookings({ kind: "ready", bookings: collected });
-      } catch (e) {
-        if (cancelled) return;
-        setBookings({
-          kind: "error",
-          message: e instanceof Error ? e.message : "Ошибка загрузки занятости",
-        });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [range]);
+  const maxPages = view === "month" ? 40 : view === "week" ? 15 : 5;
+  const fromMs = range.from.getTime();
+  const toMs = range.to.getTime();
+  const bookings = useOccupancyBookings(fromMs, toMs, maxPages);
 
   const categories = catalog.kind === "ready" ? catalog.categories : [];
 
-  // Cleanup selected categories against loaded catalog
   useEffect(() => {
     if (catalog.kind !== "ready") return;
     const valid = new Set(catalog.categories.map((c) => c.id));
@@ -181,57 +157,75 @@ export function OccupancyPage({ onNavigate }: { onNavigate: (tab: string) => voi
     return availableModels.filter((m) => selectedModels.has(m.id));
   }, [availableModels, selectedModels]);
 
-  const dayRows: DayRow[] = useMemo(() => {
-    if (catalog.kind !== "ready") return [];
-    if (dayMode === "model") {
-      return visibleModels.map<DayRow>((m) => ({
-        id: `model-${m.id}`,
-        label: m.name,
-        totalQuantity: m.total_quantity,
-        modelIds: new Set([m.id]),
-      }));
+
+  const categoryRefs = useMemo(
+    () => categories.map((c) => ({ id: c.id, name: c.name })),
+    [categories],
+  );
+
+  const categoryCodeByModelId = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const c of categories) {
+      for (const model of c.models) m.set(model.id, c.code);
     }
-    const rows: DayRow[] = [];
-    for (const c of catalog.categories) {
-      const inCat = visibleModels.filter((m) => m.category_id === c.id);
-      if (inCat.length === 0) continue;
-      const total = inCat.reduce((s, m) => s + m.total_quantity, 0);
-      rows.push({
-        id: `cat-${c.id}`,
-        label: c.name,
-        totalQuantity: total,
-        modelIds: new Set(inCat.map((m) => m.id)),
-      });
-    }
-    return rows;
-  }, [catalog, visibleModels, dayMode]);
+    return m;
+  }, [categories]);
 
   const onChangeView = (v: View) => {
     if (v === view) return;
-    if (v === "day") setDayStart(new Date(weekStart));
-    else setWeekStart(startOfWeekMonday(dayStart));
+    if (v === "month") setMonthStart(monthFirst(selectedDay));
+    if (v === "week") setWeekStart(startOfWeekMonday(selectedDay));
     setView(v);
   };
 
   const onPrev = () => {
-    if (view === "week") setWeekStart(addDays(weekStart, -7));
-    else setDayStart(addDays(dayStart, -1));
+    if (view === "month") setMonthStart(addMonths(monthStart, -1));
+    else if (view === "week") {
+      const next = addDays(weekStart, -7);
+      setWeekStart(next);
+      setSelectedDay(next);
+    } else {
+      setSelectedDay(addDays(selectedDay, -1));
+    }
   };
   const onNext = () => {
-    if (view === "week") setWeekStart(addDays(weekStart, 7));
-    else setDayStart(addDays(dayStart, 1));
+    if (view === "month") setMonthStart(addMonths(monthStart, 1));
+    else if (view === "week") {
+      const next = addDays(weekStart, 7);
+      setWeekStart(next);
+      setSelectedDay(next);
+    } else {
+      setSelectedDay(addDays(selectedDay, 1));
+    }
+  };
+  const onToday = () => {
+    const t = startOfDay(new Date());
+    setSelectedDay(t);
+    setWeekStart(startOfWeekMonday(t));
+    setMonthStart(monthFirst(t));
   };
 
   const headerLabel =
-    view === "week"
-      ? formatWeekRange(weekStart, addDays(weekStart, 6))
-      : `${weekdayShort(dayStart)}, ${formatDayMonth(dayStart)}`;
+    view === "month"
+      ? formatMonthYear(monthStart)
+      : view === "week"
+        ? formatWeekRange(weekStart, addDays(weekStart, 6))
+        : `${weekdayShort(selectedDay)}, ${formatDayMonth(selectedDay)}`;
 
   return (
     <div className="page">
       <TopBar title="Занятость" />
       <main className="page__content">
         <div className="segmented" role="tablist" aria-label="Вид занятости">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "month"}
+            className={`segmented__item${view === "month" ? " is-active" : ""}`}
+            onClick={() => onChangeView("month")}
+          >
+            Месяц
+          </button>
           <button
             type="button"
             role="tab"
@@ -260,6 +254,9 @@ export function OccupancyPage({ onNavigate }: { onNavigate: (tab: string) => voi
           <button type="button" className="empty__action" onClick={onNext}>
             След →
           </button>
+          <button type="button" className="empty__action" onClick={onToday}>
+            Сегодня
+          </button>
         </div>
 
         <div className="occ-filters">
@@ -282,29 +279,6 @@ export function OccupancyPage({ onNavigate }: { onNavigate: (tab: string) => voi
           />
         </div>
 
-        {view === "day" && (
-          <div className="occ-day-mode segmented" role="tablist" aria-label="Группировка">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={dayMode === "model"}
-              className={`segmented__item${dayMode === "model" ? " is-active" : ""}`}
-              onClick={() => setDayMode("model")}
-            >
-              По моделям
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={dayMode === "category"}
-              className={`segmented__item${dayMode === "category" ? " is-active" : ""}`}
-              onClick={() => setDayMode("category")}
-            >
-              По категориям
-            </button>
-          </div>
-        )}
-
         {catalog.kind === "error" && (
           <div className="empty">
             <p className="empty__text">Ошибка каталога: {catalog.message}</p>
@@ -316,30 +290,74 @@ export function OccupancyPage({ onNavigate }: { onNavigate: (tab: string) => voi
           </div>
         )}
 
+        {bookings.kind === "ready" && bookings.capHit && (
+          <div className="occ-capwarn" role="status">
+            Показаны не все брони диапазона: достигнут предел загрузки. Сузьте фильтр
+            или используйте более короткий режим (неделя/день) для точной статистики.
+          </div>
+        )}
+
         {catalog.kind === "ready" && bookings.kind === "ready" && (
-          view === "week" ? (
-            visibleModels.length === 0 ? (
-              <div className="empty">
-                <p className="empty__text">Нет моделей для выбранного фильтра</p>
-              </div>
-            ) : (
-              <OccupancyWeekGrid
-                weekStart={weekStart}
-                models={visibleModels}
-                bookings={bookings.bookings}
-              />
-            )
-          ) : dayRows.length === 0 ? (
-            <div className="empty">
-              <p className="empty__text">Нет данных для выбранного фильтра</p>
-            </div>
-          ) : (
-            <OccupancyDayGrid
-              dayStart={dayStart}
-              rows={dayRows}
-              bookings={bookings.bookings}
-            />
-          )
+          <>
+            {view === "month" && (
+              <>
+                <OccupancyMonthGrid
+                  monthStart={monthStart}
+                  models={visibleModels}
+                  bookings={bookings.bookings}
+                  selectedDay={selectedDay}
+                  onSelectDay={(d) => {
+                    setSelectedDay(d);
+                    if (d.getMonth() !== monthStart.getMonth() || d.getFullYear() !== monthStart.getFullYear()) {
+                      setMonthStart(monthFirst(d));
+                    }
+                  }}
+                />
+                <OccupancyDayDetails
+                  day={selectedDay}
+                  models={visibleModels}
+                  categories={categoryRefs}
+                  bookings={bookings.bookings}
+                />
+              </>
+            )}
+
+            {view === "week" && (
+              visibleModels.length === 0 ? (
+                <div className="empty">
+                  <p className="empty__text">Нет моделей для выбранного фильтра</p>
+                </div>
+              ) : (
+                <OccupancyWeekGrid
+                  weekStart={weekStart}
+                  models={visibleModels}
+                  bookings={bookings.bookings}
+                  selectedDay={selectedDay}
+                  categoryCodeByModelId={categoryCodeByModelId}
+                  onSelectDay={(d) => {
+                    setSelectedDay(d);
+                    const ws = startOfWeekMonday(d);
+                    if (ws.getTime() !== weekStart.getTime()) setWeekStart(ws);
+                  }}
+                />
+              )
+            )}
+
+            {view === "day" && (
+              visibleModels.length === 0 ? (
+                <div className="empty">
+                  <p className="empty__text">Нет данных для выбранного фильтра</p>
+                </div>
+              ) : (
+                <OccupancyDayDetails
+                  day={selectedDay}
+                  models={visibleModels}
+                  categories={categoryRefs}
+                  bookings={bookings.bookings}
+                />
+              )
+            )}
+          </>
         )}
       </main>
       <BottomNav active="occupancy" onSelect={onNavigate} />
