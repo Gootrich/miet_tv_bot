@@ -10,16 +10,19 @@ equipment_items), потому что CHECK-констрейнты bookings на
 """
 
 from collections.abc import AsyncIterator
+from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
+from fastapi import HTTPException as FastAPIHTTPException
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import Column, MetaData, Table
+from sqlalchemy import Column, MetaData, Table, select
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import StaticPool
 
 from app.api import routes as routes_module
 from app.api.deps import get_optional_approved_user
@@ -28,6 +31,10 @@ from app.core.config import settings
 from app.db.base import Base
 from app.db.session import get_session
 from app.models import Category, EquipmentItem, EquipmentModel
+from app.models.booking import Booking
+from app.models.booking_history import BookingHistory
+from app.models.user import User
+from app.services import booking as booking_service
 
 
 def _build_test_metadata() -> MetaData:
@@ -43,9 +50,15 @@ def _build_test_metadata() -> MetaData:
     md = MetaData()
     for name in (
         "users",
+        # roles/user_roles нужны, потому что User.roles настроен на
+        # автоподгрузку при session.get(User, ...): без этих таблиц
+        # SQLAlchemy падает на `no such table: user_roles`.
+        "roles",
+        "user_roles",
         "categories",
         "equipment_models",
         "equipment_items",
+        "booking_history",
     ):
         Base.metadata.tables[name].to_metadata(md)
 
@@ -59,6 +72,10 @@ def _build_test_metadata() -> MetaData:
                 col.type,
                 nullable=col.nullable,
                 primary_key=col.primary_key,
+                # Сохраняем server_default: created_at в модели имеет
+                # server_default=func.now(); без него SQLite не позволит
+                # INSERT (NOT NULL без дефолта).
+                server_default=col.server_default,
             )
             for col in src.columns
         ],
@@ -305,6 +322,316 @@ async def test_create_booking_anonymous_401(client: AsyncClient) -> None:
         },
     )
     assert response.status_code == 401
+
+
+
+# ============================================================
+# Этап 3: атомарность групповых операций (H-6, H-8, Q3)
+# ============================================================
+
+@pytest_asyncio.fixture
+async def booking_session_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> AsyncIterator[dict]:
+    """Изолированная SQLite StaticPool с User + группой из 3 confirmed броней.
+
+    Подменяет app.services.booking.AsyncSessionFactory на эту фабрику:
+    сервис возврата/отмены открывает свою транзакцию, и должна попадать
+    в тот же in-memory engine.
+    """
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
+    )
+    md = _build_test_metadata()
+    async with engine.begin() as conn:
+        await conn.run_sync(md.create_all)
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with factory() as session:
+        user = User(
+            telegram_id=900001,
+            full_name="Test User",
+            username="test_user",
+            status="active",
+            is_active=True,
+        )
+        session.add(user)
+        await session.flush()
+
+        cat = Category(code="test", name="Test", description=None)
+        session.add(cat)
+        await session.flush()
+
+        model = EquipmentModel(
+            category_id=cat.id,
+            name="Test Model",
+            access_policy="all",
+            tracking_type="quantity",
+            total_quantity=10,
+        )
+        session.add(model)
+        await session.flush()
+
+        start = datetime(2030, 1, 1, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2030, 1, 2, 0, 0, tzinfo=timezone.utc)
+        created = []
+        for _ in range(3):
+            b = Booking(
+                user_id=user.id,
+                model_id=model.id,
+                quantity=1,
+                planned_start=start,
+                planned_end=end,
+                status="confirmed",
+                actual_checkout=datetime.now(timezone.utc),
+            )
+            session.add(b)
+            created.append(b)
+        await session.flush()
+        group_id = created[0].id
+        for b in created:
+            b.group_id = group_id
+        await session.commit()
+
+        user_id = user.id
+        booking_ids = [b.id for b in created]
+
+    # booking.py импортирует AsyncSessionFactory внутри функции
+    # (`from app.db.session import AsyncSessionFactory`), поэтому
+    # подменять надо источник — app.db.session, а не app.services.booking.
+    monkeypatch.setattr(
+        "app.db.session.AsyncSessionFactory", factory,
+    )
+
+    try:
+        yield {
+            "factory": factory,
+            "user_id": user_id,
+            "group_id": group_id,
+            "booking_ids": booking_ids,
+        }
+    finally:
+        await engine.dispose()
+
+
+async def test_return_all_in_group_returns_all(
+    booking_session_factory: dict,
+) -> None:
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+
+    async with factory() as session:
+        user = await session.get(User, ctx["user_id"])
+        returned = await booking_service.return_all_in_group(
+            session, ctx["group_id"], user,
+        )
+        assert len(returned) == 3
+        assert {b.id for b in returned} == set(ctx["booking_ids"])
+
+    async with factory() as check:
+        for bid in ctx["booking_ids"]:
+            b = await check.get(Booking, bid)
+            assert b.status == "completed"
+            assert b.actual_return is not None
+        events = (
+            await check.execute(
+                select(BookingHistory).where(
+                    BookingHistory.event_type == "return",
+                    BookingHistory.booking_id.in_(ctx["booking_ids"]),
+                )
+            )
+        ).scalars().all()
+        assert len(events) == 3
+
+
+async def test_return_all_in_group_atomic_on_error(
+    booking_session_factory: dict,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """H-6: сбой record_event на середине откатывает всю группу."""
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+
+    call_count = {"n": 0}
+    original = booking_service.record_event
+
+    async def failing_record(*args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] == 2:
+            raise RuntimeError("simulated mid-batch failure")
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(booking_service, "record_event", failing_record)
+
+    async with factory() as session:
+        user = await session.get(User, ctx["user_id"])
+        with pytest.raises(RuntimeError):
+            await booking_service.return_all_in_group(
+                session, ctx["group_id"], user,
+            )
+
+    async with factory() as check:
+        for bid in ctx["booking_ids"]:
+            b = await check.get(Booking, bid)
+            assert b.status == "confirmed"
+            assert b.actual_return is None
+        events = (
+            await check.execute(
+                select(BookingHistory).where(
+                    BookingHistory.event_type == "return",
+                )
+            )
+        ).scalars().all()
+        assert events == []
+
+
+async def test_return_partial_in_group_idempotent(
+    booking_session_factory: dict,
+) -> None:
+    """Q1-c2: уже completed пропускается без ошибки."""
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+
+    async with factory() as session:
+        b = await session.get(Booking, ctx["booking_ids"][0])
+        b.status = "completed"
+        b.actual_return = datetime.now(timezone.utc)
+        await session.commit()
+
+    async with factory() as session:
+        user = await session.get(User, ctx["user_id"])
+        returned = await booking_service.return_partial_in_group(
+            session, ctx["group_id"], user, ctx["booking_ids"],
+        )
+        assert len(returned) == 2
+        assert ctx["booking_ids"][0] not in {b.id for b in returned}
+
+    async with factory() as check:
+        for bid in ctx["booking_ids"]:
+            b = await check.get(Booking, bid)
+            assert b.status == "completed"
+
+
+async def test_return_partial_in_group_invalid_400(
+    booking_session_factory: dict,
+) -> None:
+    """Q1-c2: pending в запросе → 400, откат всей группы."""
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+
+    async with factory() as session:
+        b = await session.get(Booking, ctx["booking_ids"][0])
+        b.status = "pending"
+        b.actual_checkout = None
+        await session.commit()
+
+    async with factory() as session:
+        user = await session.get(User, ctx["user_id"])
+        with pytest.raises(FastAPIHTTPException) as exc_info:
+            await booking_service.return_partial_in_group(
+                session, ctx["group_id"], user, ctx["booking_ids"],
+            )
+        assert exc_info.value.status_code == 400
+
+    async with factory() as check:
+        for bid in ctx["booking_ids"][1:]:
+            b = await check.get(Booking, bid)
+            assert b.status == "confirmed"
+            assert b.actual_return is None
+
+
+async def test_cancel_group_returns_all(
+    booking_session_factory: dict,
+) -> None:
+    """Q3: cancel_group атомарно отменяет все pending/confirmed.
+
+    Выданную бронь владелец отменить не может (только админ), поэтому
+    фикстуру с checkout обнуляем: сценарий — брони подтверждены, но
+    ещё не выданы, пользователь отменяет всю группу.
+    """
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+
+    async with factory() as session:
+        for bid in ctx["booking_ids"]:
+            b = await session.get(Booking, bid)
+            b.actual_checkout = None
+            b.status = "confirmed"
+        await session.commit()
+
+    async with factory() as session:
+        user = await session.get(User, ctx["user_id"])
+        cancelled = await booking_service.cancel_group(
+            session, ctx["group_id"], user,
+        )
+        assert len(cancelled) == 3
+
+    async with factory() as check:
+        for bid in ctx["booking_ids"]:
+            b = await check.get(Booking, bid)
+            assert b.status == "cancelled"
+        events = (
+            await check.execute(
+                select(BookingHistory).where(
+                    BookingHistory.event_type == "cancelled",
+                    BookingHistory.booking_id.in_(ctx["booking_ids"]),
+                )
+            )
+        ).scalars().all()
+        assert len(events) == 3
+
+
+async def test_cancel_group_empty_noop(
+    booking_session_factory: dict,
+) -> None:
+    """Q2-c: cancel на уже завершённой группе → []."""
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+
+    async with factory() as session:
+        for bid in ctx["booking_ids"]:
+            b = await session.get(Booking, bid)
+            b.status = "completed"
+            b.actual_return = datetime.now(timezone.utc)
+        await session.commit()
+
+    async with factory() as session:
+        user = await session.get(User, ctx["user_id"])
+        cancelled = await booking_service.cancel_group(
+            session, ctx["group_id"], user,
+        )
+        assert cancelled == []
+
+
+async def test_cancel_group_not_owner(
+    booking_session_factory: dict,
+) -> None:
+    """Q3: чужой пользователь получает 404/403."""
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+
+    async with factory() as session:
+        other = User(
+            telegram_id=900002,
+            full_name="Other",
+            username="other",
+            status="active",
+            is_active=True,
+        )
+        session.add(other)
+        await session.commit()
+        other_id = other.id
+
+    async with factory() as session:
+        other = await session.get(User, other_id)
+        with pytest.raises(FastAPIHTTPException) as exc_info:
+            await booking_service.cancel_group(
+                session, ctx["group_id"], other,
+            )
+        assert exc_info.value.status_code in (403, 404)
 
 
 async def test_catalog_availability_excludes_maintenance(

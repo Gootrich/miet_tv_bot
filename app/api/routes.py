@@ -210,6 +210,35 @@ async def return_all_in_group_endpoint(
 
 
 @router.post(
+    "/bookings/group/{group_id}/cancel",
+    response_model=list[BookingOut],
+)
+async def cancel_group_endpoint(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    cancelled = await booking_service.cancel_group(
+        session=session,
+        group_id=group_id,
+        user=current_user,
+        is_admin=current_user.is_admin,
+    )
+    if not cancelled:
+        return []
+    ids = {b.id for b in cancelled}
+    detailed = await booking_service.get_bookings(
+        session=session,
+        user_id=current_user.id,
+        is_admin=True,
+        include_cancelled=True,
+        limit=100,
+    )
+    by_id = {b.id: b for b in detailed if b.id in ids}
+    return [BookingOut.from_orm_booking(by_id.get(b.id, b)) for b in cancelled]
+
+
+@router.post(
     "/bookings/group/{group_id}/return-partial",
     response_model=list[BookingOut],
 )

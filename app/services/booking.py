@@ -859,41 +859,147 @@ async def add_to_booking(
     return b
 
 
+def _can_return_now(b: Booking) -> bool:
+    """Валидная цель возврата: выдана, ещё не возвращена, статус confirmed."""
+    return (
+        b.actual_checkout is not None
+        and b.actual_return is None
+        and b.status == "confirmed"
+    )
+
+
+async def _apply_return_in_tx(
+    tx: AsyncSession, booking: Booking, user_id: int,
+) -> None:
+    """Мутирует бронь в completed и пишет событие. Без commit."""
+    booking.actual_return = datetime.now(timezone.utc)
+    booking.status = "completed"
+    await record_event(
+        tx,
+        booking_id=booking.id,
+        event_type="return",
+        actor_user_id=user_id,
+        details=None,
+    )
+
+
 async def return_all_in_group(
     session: AsyncSession,
     group_id: int,
     user: User,
 ) -> list[Booking]:
-    """«Вернуть всё»: возвращает все выданные брони группы текущего пользователя.
+    """«Вернуть всё»: атомарно возвращает все выданные брони группы.
 
-    Только владелец. Брони без checkout или уже возвращённые — пропускаются
-    (не ошибка, чтобы UI мог нажать «вернуть всё» на смешанной группе).
+    H-6: все мутации и события в одной транзакции.
+    Идемпотентность: брони без checkout или уже возвращённые пропускаются.
     """
-    stmt = select(Booking).where(
-        Booking.group_id == group_id,
-        Booking.user_id == user.id,
-    )
-    result = await session.execute(stmt)
-    group = list(result.scalars().all())
-    if not group:
-        # возможно, legacy: group_id == booking_id для одиночной
-        single = await session.get(Booking, group_id)
-        if single is None or single.user_id != user.id:
-            raise HTTPException(404, "Группа не найдена.")
-        group = [single]
+    from app.db.session import AsyncSessionFactory
 
-    returned: list[Booking] = []
-    for b in group:
-        if b.actual_checkout is not None and b.actual_return is None and b.status == "confirmed":
-            returned.append(
-                await return_booking(
-                    session=session,
-                    booking_id=b.id,
-                    user_id=user.id,
-                    is_admin=False,
+    lock = _get_create_booking_lock()
+    returned_ids: list[int] = []
+    async with lock:
+        async with AsyncSessionFactory() as tx:
+            async with tx.begin():
+                stmt = select(Booking).where(
+                    Booking.group_id == group_id,
+                    Booking.user_id == user.id,
                 )
-            )
-    return returned
+                result = await tx.execute(stmt)
+                group = list(result.scalars().all())
+                if not group:
+                    single = await tx.get(Booking, group_id)
+                    if single is None or single.user_id != user.id:
+                        raise HTTPException(404, "Группа не найдена.")
+                    group = [single]
+
+                to_return = [b for b in group if _can_return_now(b)]
+                for b in to_return:
+                    await _apply_return_in_tx(tx, b, user.id)
+                    returned_ids.append(b.id)
+                await tx.flush()
+
+    if not returned_ids:
+        return []
+    out: list[Booking] = []
+    for bid in returned_ids:
+        b = await session.get(Booking, bid)
+        if b is not None:
+            out.append(b)
+    return out
+
+
+async def cancel_group(
+    session: AsyncSession,
+    group_id: int,
+    user: User,
+    is_admin: bool = False,
+) -> list[Booking]:
+    """Отменить все pending/confirmed брони группы (H-6: атомарно).
+
+    Идемпотентность: already cancelled/completed пропускаются.
+    Владелец или админ. Выданную бронь может отменить только админ.
+    """
+    from app.db.session import AsyncSessionFactory
+
+    lock = _get_create_booking_lock()
+    cancelled_ids: list[int] = []
+    async with lock:
+        async with AsyncSessionFactory() as tx:
+            async with tx.begin():
+                stmt = select(Booking).where(
+                    Booking.group_id == group_id,
+                )
+                if not is_admin:
+                    stmt = stmt.where(Booking.user_id == user.id)
+                result = await tx.execute(stmt)
+                group = list(result.scalars().all())
+                if not group:
+                    single = await tx.get(Booking, group_id)
+                    if single is None:
+                        raise HTTPException(404, "Группа не найдена.")
+                    if not is_admin and single.user_id != user.id:
+                        raise HTTPException(404, "Группа не найдена.")
+                    group = [single]
+
+                if not is_admin:
+                    for b in group:
+                        if b.user_id != user.id:
+                            raise HTTPException(
+                                403, "Нет доступа к этой группе."
+                            )
+
+                to_cancel: list[Booking] = []
+                for b in group:
+                    if b.status in ("cancelled", "completed"):
+                        continue
+                    if b.actual_checkout is not None and not is_admin:
+                        raise HTTPException(
+                            400,
+                            "Оборудование уже выдано — отменить может "
+                            "только администратор.",
+                        )
+                    to_cancel.append(b)
+
+                for b in to_cancel:
+                    b.status = "cancelled"
+                    await record_event(
+                        tx,
+                        booking_id=b.id,
+                        event_type="cancelled",
+                        actor_user_id=user.id,
+                        details=None,
+                    )
+                    cancelled_ids.append(b.id)
+                await tx.flush()
+
+    if not cancelled_ids:
+        return []
+    out: list[Booking] = []
+    for bid in cancelled_ids:
+        b = await session.get(Booking, bid)
+        if b is not None:
+            out.append(b)
+    return out
 
 
 async def return_partial_in_group(
@@ -902,47 +1008,76 @@ async def return_partial_in_group(
     user: User,
     booking_ids: list[int],
 ) -> list[Booking]:
-    """«Вернуть частично»: вернуть указанные booking_id из группы."""
+    """«Вернуть частично»: атомарно вернуть указанные booking_id группы.
+
+    H-6: все мутации и события в одной транзакции.
+    Q1-c2 (идемпотентность): уже completed → пропуск без ошибки.
+    Q1-c2 (строгость): pending/cancelled/не выдана/не в группе → 400
+    с перечнем причин, откат всей группы.
+    """
     if not booking_ids:
         raise HTTPException(400, "Пустой список booking_ids.")
 
-    stmt = select(Booking).where(
-        Booking.group_id == group_id,
-        Booking.user_id == user.id,
-    )
-    result = await session.execute(stmt)
-    group = list(result.scalars().all())
-    if not group:
-        single = await session.get(Booking, group_id)
-        if single is None or single.user_id != user.id:
-            raise HTTPException(404, "Группа не найдена.")
-        group = [single]
+    from app.db.session import AsyncSessionFactory
 
-    allowed = {b.id for b in group}
-    bad = [i for i in booking_ids if i not in allowed]
-    if bad:
-        raise HTTPException(
-            400,
-            f"Брони не входят в группу {group_id} или не ваши: {bad}.",
-        )
+    lock = _get_create_booking_lock()
+    returned_ids: list[int] = []
+    async with lock:
+        async with AsyncSessionFactory() as tx:
+            async with tx.begin():
+                stmt = select(Booking).where(
+                    Booking.group_id == group_id,
+                    Booking.user_id == user.id,
+                )
+                result = await tx.execute(stmt)
+                group = list(result.scalars().all())
+                if not group:
+                    single = await tx.get(Booking, group_id)
+                    if single is None or single.user_id != user.id:
+                        raise HTTPException(404, "Группа не найдена.")
+                    group = [single]
 
-    returned: list[Booking] = []
-    for bid in booking_ids:
+                allowed = {b.id: b for b in group}
+
+                valid: list[Booking] = []
+                invalid: list[tuple[int, str]] = []
+                for bid in booking_ids:
+                    if bid not in allowed:
+                        invalid.append((bid, "не входит в группу"))
+                        continue
+                    b = allowed[bid]
+                    if b.status == "completed" and b.actual_return is not None:
+                        continue
+                    if b.actual_checkout is None:
+                        invalid.append((bid, "оборудование не было выдано"))
+                        continue
+                    if b.status == "cancelled":
+                        invalid.append((bid, "бронь отменена"))
+                        continue
+                    if b.status == "pending":
+                        invalid.append((bid, "бронь ещё не подтверждена"))
+                        continue
+                    if b.status != "confirmed":
+                        invalid.append((bid, f"статус {b.status}"))
+                        continue
+                    valid.append(b)
+
+                if invalid:
+                    reasons = "; ".join(
+                        f"#{bid}: {reason}" for bid, reason in invalid
+                    )
+                    raise HTTPException(400, f"Нельзя вернуть: {reasons}")
+
+                for b in valid:
+                    await _apply_return_in_tx(tx, b, user.id)
+                    returned_ids.append(b.id)
+                await tx.flush()
+
+    if not returned_ids:
+        return []
+    out: list[Booking] = []
+    for bid in returned_ids:
         b = await session.get(Booking, bid)
-        if b is None:
-            continue
-        if b.actual_checkout is None:
-            continue
-        if b.actual_return is not None:
-            continue
-        if b.status != "confirmed":
-            continue
-        returned.append(
-            await return_booking(
-                session=session,
-                booking_id=bid,
-                user_id=user.id,
-                is_admin=False,
-            )
-        )
-    return returned
+        if b is not None:
+            out.append(b)
+    return out
