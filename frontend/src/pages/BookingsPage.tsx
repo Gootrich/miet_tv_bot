@@ -116,6 +116,14 @@ function groupBookings(bookings: BookingOut[]): BookingGroup[] {
   return groups;
 }
 
+function pluralPositions(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return "позиция";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "позиции";
+  return "позиций";
+}
+
 export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const toast = useToast();
   const [tab, setTab] = useState<Tab>("mine");
@@ -135,6 +143,25 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
   // Отмена (по одной брони)
   const [cancelId, setCancelId] = useState<number | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
+
+  // Отмена всей группы
+  const [cancelGroupId, setCancelGroupId] = useState<number | null>(null);
+  const [cancelGroupBusy, setCancelGroupBusy] = useState(false);
+
+  // Групповая выдача
+  const [checkoutGroupId, setCheckoutGroupId] = useState<number | null>(null);
+  const [checkoutGroupBusy, setCheckoutGroupBusy] = useState(false);
+
+  // Развёрнутые группы (по умолчанию список позиций скрыт)
+  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(() => new Set<number>());
+  const toggleExpanded = (gid: number) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(gid)) next.delete(gid);
+      else next.add(gid);
+      return next;
+    });
+  };
 
   // Перенос (по одной брони)
   const [moveTarget, setMoveTarget] = useState<BookingOut | null>(null);
@@ -303,6 +330,72 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Ошибка отмены");
     } finally { setCancelBusy(false); }
+  };
+
+  const doCancelGroup = async () => {
+    if (cancelGroupId == null) return;
+    const group = groups.find((g) => g.group_id === cancelGroupId);
+    if (!group) { setCancelGroupId(null); return; }
+    const toCancel = group.bookings.filter(
+      (b) => b.status === "pending" && b.actual_checkout == null,
+    );
+    if (toCancel.length === 0) { setCancelGroupId(null); return; }
+    setCancelGroupBusy(true);
+    let done = 0;
+    let firstError: string | null = null;
+    try {
+      for (const b of toCancel) {
+        try {
+          await cancelBooking(b.id);
+          done++;
+        } catch (e) {
+          firstError = `#${b.id}: ${e instanceof Error ? e.message : "ошибка"}`;
+          break;
+        }
+      }
+      if (firstError) {
+        toast.error(`Отменено ${done} из ${toCancel.length}. Ошибка: ${firstError}`);
+      } else {
+        toast.success(`Отменено позиций: ${done}`);
+      }
+    } finally {
+      setCancelGroupBusy(false);
+      setCancelGroupId(null);
+      await loadBookings("replace");
+    }
+  };
+
+  const doCheckoutGroup = async () => {
+    if (checkoutGroupId == null) return;
+    const group = groups.find((g) => g.group_id === checkoutGroupId);
+    if (!group) { setCheckoutGroupId(null); return; }
+    const toCheckout = group.bookings.filter(
+      (b) => b.actual_checkout == null && (b.status === "pending" || b.status === "confirmed"),
+    );
+    if (toCheckout.length === 0) { setCheckoutGroupId(null); return; }
+    setCheckoutGroupBusy(true);
+    let done = 0;
+    let firstError: string | null = null;
+    try {
+      for (const b of toCheckout) {
+        try {
+          await checkoutBooking(b.id);
+          done++;
+        } catch (e) {
+          firstError = `#${b.id}: ${e instanceof Error ? e.message : "ошибка"}`;
+          break;
+        }
+      }
+      if (firstError) {
+        toast.error(`Выдано ${done} из ${toCheckout.length}. Ошибка: ${firstError}`);
+      } else {
+        toast.success(`Выдано позиций: ${done}`);
+      }
+    } finally {
+      setCheckoutGroupBusy(false);
+      setCheckoutGroupId(null);
+      await loadBookings("replace");
+    }
   };
 
   const openMove = (b: BookingOut) => {
@@ -503,7 +596,7 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
                     <h2 className="card__title">
                       {allBookings.length === 1
                         ? (g.primary.model_name ?? `Модель #${g.primary.model_id ?? "—"}`)
-                        : `Группа #${g.group_id} · ${allBookings.length} позиции`}
+                        : `Групповая бронь #${g.group_id} · ${allBookings.length} ${pluralPositions(allBookings.length)}`}
                     </h2>
                     <span className={`status-chip ${s.cls}`}>
                       <span className={`status-dot ${s.dot}`} />
@@ -525,7 +618,35 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
                     </p>
                   )}
 
-                  {/* Список моделей в группе */}
+                  {/* Управление группой: показать позиции + добавить к брони */}
+                  {(allBookings.length > 1 ||
+                    (mine && (g.primary.status === "pending" || g.primary.status === "confirmed") && g.primary.actual_checkout == null)) && (
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+                    {allBookings.length > 1 && (
+                      <button
+                        type="button"
+                        className="empty__action"
+                        onClick={() => toggleExpanded(g.group_id)}
+                        aria-expanded={expandedGroups.has(g.group_id)}
+                      >
+                        {expandedGroups.has(g.group_id)
+                          ? "Скрыть позиции"
+                          : `Показать ${allBookings.length} ${pluralPositions(allBookings.length)}`}
+                      </button>
+                    )}
+                    {mine && (g.primary.status === "pending" || g.primary.status === "confirmed") && g.primary.actual_checkout == null && (
+                      <button
+                        type="button"
+                        className="empty__action"
+                        onClick={() => openAdd(g.primary)}
+                      >
+                        Добавить к брони
+                      </button>
+                    )}
+                  </div>
+                  )}
+
+                  {(allBookings.length === 1 || expandedGroups.has(g.group_id)) && (
                   <div style={{ marginTop: 8, borderTop: "1px solid var(--md-sys-color-outline-variant)", paddingTop: 8 }}>
                     {allBookings.map((b) => {
                       const bs = statusInfo(b.status);
@@ -568,16 +689,26 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
                       );
                     })}
                   </div>
+                  )}
 
                   {/* Групповые действия */}
                   {mine && (
                     <div className="row-actions" style={{ marginTop: 8, borderTop: "1px solid var(--md-sys-color-outline-variant)", paddingTop: 8 }}>
-                      {(g.primary.status === "pending" || g.primary.status === "confirmed") && g.primary.actual_checkout == null && (
-                        <button type="button" className="card__cta card__cta--secondary"
-                          onClick={() => openAdd(g.primary)}>
-                          Добавить к брони
-                        </button>
-                      )}
+                      {allBookings.length > 1 &&
+                        allBookings.every((b) => b.actual_checkout == null && (b.status === "pending" || b.status === "confirmed")) && (
+                          <button type="button" className="card__cta"
+                            disabled={checkoutGroupBusy}
+                            onClick={() => setCheckoutGroupId(g.group_id)}>
+                            Получить всё
+                          </button>
+                        )}
+                      {allBookings.length > 1 &&
+                        allBookings.every((b) => b.status === "pending" && b.actual_checkout == null) && (
+                          <button type="button" className="card__cta card__cta--danger"
+                            onClick={() => setCancelGroupId(g.group_id)}>
+                            Отменить всю бронь
+                          </button>
+                        )}
                       {anyCheckedOut && (
                         <>
                           <button type="button" className="card__cta"
@@ -676,6 +807,38 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
           danger busy={cancelBusy}
           onConfirm={doCancel}
           onCancel={() => { if (!cancelBusy) setCancelId(null); }}
+        />
+
+        {/* Модалка: отмена всей группы */}
+        <ConfirmModal
+          open={cancelGroupId != null}
+          title="Отменить всю бронь?"
+          message={
+            cancelGroupId != null
+              ? `Все позиции группы #${cancelGroupId} будут отменены.`
+              : ""
+          }
+          confirmLabel="Отменить всё"
+          cancelLabel="Не отменять"
+          danger busy={cancelGroupBusy}
+          onConfirm={doCancelGroup}
+          onCancel={() => { if (!cancelGroupBusy) setCancelGroupId(null); }}
+        />
+
+        {/* Модалка: групповая выдача */}
+        <ConfirmModal
+          open={checkoutGroupId != null}
+          title="Выдать всю бронь?"
+          message={
+            checkoutGroupId != null
+              ? `Все позиции группы #${checkoutGroupId} будут помечены как выданные.`
+              : ""
+          }
+          confirmLabel="Получить всё"
+          cancelLabel="Отмена"
+          busy={checkoutGroupBusy}
+          onConfirm={doCheckoutGroup}
+          onCancel={() => { if (!checkoutGroupBusy) setCheckoutGroupId(null); }}
         />
 
         {/* Модалка: перенос */}
