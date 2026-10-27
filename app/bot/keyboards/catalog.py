@@ -4,18 +4,12 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.models import Category, EquipmentModel
 
 
-def main_menu_kb() -> InlineKeyboardMarkup:
-    """Кнопка «Каталог» под приветствием /start."""
-    kb = InlineKeyboardBuilder()
-    kb.button(text="📦 Каталог", callback_data="catalog:root")
-    return kb.as_markup()
-
-
 def categories_kb(categories: list[Category]) -> InlineKeyboardMarkup:
-    """Список категорий + кнопка «Назад» в главное меню (на /start)."""
+    """Список категорий + «🏠 В меню»."""
     kb = InlineKeyboardBuilder()
     for cat in categories:
         kb.button(text=cat.name, callback_data=f"catalog:cat:{cat.id}")
+    kb.button(text="🏠 В меню", callback_data="menu:root")
     kb.adjust(1)
     return kb.as_markup()
 

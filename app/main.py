@@ -6,6 +6,7 @@ from aiogram.types import BotCommand, BotCommandScopeChat, BotCommandScopeDefaul
 
 from app.bot.handlers.admin import router as admin_router  # добавлено
 from app.bot.handlers.catalog import router as catalog_router
+from app.bot.handlers.menu import router as menu_router
 from app.bot.handlers.start import router as start_router
 from app.bot.middlewares.throttling import SimpleThrottlingMiddleware
 from app.core.config import settings
@@ -22,6 +23,7 @@ async def _setup_bot_commands(bot: Bot) -> None:
     """
     user_commands = [
         BotCommand(command="start", description="Регистрация и главное меню"),
+        BotCommand(command="menu", description="Главное меню с кнопками"),
         BotCommand(command="clubs", description="Подать заявку во второй клуб"),
         BotCommand(command="catalog", description="Каталог оборудования"),
         BotCommand(command="help", description="Справка по боту"),
@@ -76,6 +78,7 @@ async def main() -> None:
         SimpleThrottlingMiddleware(limit=5, window_seconds=10),
     )
     dp.include_router(start_router)
+    dp.include_router(menu_router)
     dp.include_router(admin_router)
     dp.include_router(catalog_router)
 

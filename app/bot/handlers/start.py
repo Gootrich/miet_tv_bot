@@ -13,11 +13,11 @@ from app.bot.keyboards.auth import (
     admin_request_kb,
     clubs_choice_kb,
     extra_clubs_kb,
-    open_webapp_kb,
     pending_after_submit_kb,
     restart_after_reject_kb,
 )
-from app.bot.keyboards.catalog import main_menu_kb
+from app.bot.handlers.menu import APPROVED_CHECKLIST, build_help_text
+from app.bot.keyboards.menu import main_menu_kb
 from app.core.config import settings
 from app.db.session import AsyncSessionFactory
 from app.models.user import RegistrationRequest, User
@@ -33,17 +33,6 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 PARSE_HTML = "HTML"
-
-# TODO(координатор): согласовать формулировки чек-листа перед публикацией.
-APPROVED_CHECKLIST = (
-    "<b>Чек-лист участника:</b>\n"
-    "1. Соблюдайте правила клуба и техники безопасности.\n"
-    "2. Бронируйте оборудование заранее и отменяйте ненужные брони.\n"
-    "3. Возвращайте технику вовремя и в исправном состоянии.\n"
-    "4. Сообщайте администратору о поломках и потерях.\n"
-    "5. Не передавайте оборудование третьим лицам.\n\n"
-    "Открыть Mini App: /start → «Открыть приложение»."
-)
 
 # Человекочитаемые статусы заявок для пользователя и админа.
 _STATUS_HUMAN = {
@@ -116,14 +105,14 @@ async def _requests_summary(session, user_id: int) -> str:
 
 def _active_hint() -> str:
     return (
-        "Используй <code>/catalog</code>, чтобы посмотреть оборудование, "
-        "или <code>/clubs</code>, чтобы подать заявку во второй клуб."
+        "Открой <code>/menu</code> для навигации по кнопкам. "
+        "Команды <code>/catalog</code> и <code>/clubs</code> тоже работают."
     )
 
 
 def _markup_for(user, pending_reqs):
     if user.status == "active":
-        return open_webapp_kb() or main_menu_kb()
+        return main_menu_kb(webapp_url=settings.webapp_url or None)
     if user.status == "pending":
         if pending_reqs:
             return pending_after_submit_kb()
@@ -212,54 +201,10 @@ async def cmd_help(message: Message) -> None:
     tg_user = message.from_user
     if tg_user is None:
         return
-
-    is_blocked = False
-    is_active_user = False
-    is_reg_admin = False
-    is_users_admin = False
-
     async with AsyncSessionFactory() as session:
         user = await find_user_by_telegram_id(session, tg_user.id)
-        if user is not None:
-            is_blocked = user.status == "blocked"
-            is_active_user = user.status == "active"
-            # has_scope читается внутри сессии, роли уже загружены selectin.
-            is_reg_admin = (
-                user.has_scope("admin:super")
-                or user.has_scope("admin:registrations:photographer")
-                or user.has_scope("admin:registrations:videographer")
-            )
-            is_users_admin = (
-                user.has_scope("admin:super")
-                or user.has_scope("admin:users")
-            )
-
-    lines: list[str] = []
-    if is_blocked:
-        lines.append("🚫 <b>Доступ заблокирован.</b>")
-        lines.append("")
-    lines.append("<b>Что умеет бот</b>")
-    lines.append("")
-    lines.append("• /start — регистрация и главное меню")
-    if is_active_user:
-        lines.append("• /clubs — подать заявку во второй клуб")
-        lines.append("• /catalog — каталог оборудования")
-    lines.append("• /help — эта справка")
-
-    if is_reg_admin or is_users_admin:
-        lines.append("")
-        lines.append("<b>Администратору:</b>")
-        if is_reg_admin:
-            lines.append("• /pending — заявки на рассмотрении")
-        if is_users_admin:
-            lines.append("• /users — список пользователей")
-            lines.append(
-                "• /block &lt;telegram_id&gt; &lt;часы|0&gt; &lt;причина&gt; "
-                "— заблокировать"
-            )
-            lines.append("• /unblock &lt;telegram_id&gt; — разблокировать")
-
-    await message.answer("\n".join(lines), parse_mode=PARSE_HTML)
+    text = build_help_text(user)
+    await message.answer(text, parse_mode=PARSE_HTML)
 
 
 # --- Toggle клуба ---
@@ -437,10 +382,12 @@ async def cmd_clubs(message: Message) -> None:
                 parse_mode=PARSE_HTML,
             )
             return
-        async with session.begin():
-            user.requested_role_code = ",".join(
-                c for c in CLUB_ORDER if c in pending
-            ) or None
+        # Сессия уже в транзакции от предыдущих SELECT (autobegin).
+        # begin() здесь упал бы с InvalidRequestError — коммитим напрямую.
+        user.requested_role_code = ",".join(
+            c for c in CLUB_ORDER if c in pending
+        ) or None
+        await session.commit()
 
     await message.answer(
         _extra_clubs_screen_text(approved, pending),
