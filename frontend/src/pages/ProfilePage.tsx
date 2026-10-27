@@ -5,6 +5,8 @@ import { AdminSection } from "../components/AdminSection";
 import { AuthRequired } from "../components/AuthRequired";
 import { fetchMe, type UserOut } from "../api/admin";
 import { ApiError } from "../api/client";
+import { useTheme } from "../theme/useTheme";
+import type { ThemeChoice } from "../theme/ThemeProvider";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Администратор",
@@ -68,11 +70,50 @@ export function ProfilePage({
       (c) => c === "admin" || c === "miettv_head" || c === "infocus_head",
     );
 
+  const { choice, resolved, setChoice } = useTheme();
+
   return (
     <div className="page">
       <TopBar />
       <main className="page__content">
         <h1 className="section-title">Профиль</h1>
+
+        <div className="card">
+          <h2 className="card__title">Тема</h2>
+          <p className="card__subtitle">
+            {choice === "auto"
+              ? `Системная (сейчас ${resolved === "dark" ? "тёмная" : "светлая"})`
+              : "Применяется ко всем разделам и сохраняется между запусками."}
+          </p>
+          <div
+            className="segmented"
+            role="radiogroup"
+            aria-label="Выбор темы"
+            style={{ marginTop: 8 }}
+          >
+            {(["auto", "light", "dark"] as ThemeChoice[]).map((code) => {
+              const label =
+                code === "auto"
+                  ? "Системная"
+                  : code === "light"
+                  ? "Светлая"
+                  : "Тёмная";
+              const active = choice === code;
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  className={`segmented__item${active ? " is-active" : ""}`}
+                  onClick={() => setChoice(code)}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         {state.kind === "loading" && <p className="empty__text">Загрузка…</p>}
 

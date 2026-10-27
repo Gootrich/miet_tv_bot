@@ -1,22 +1,29 @@
 import { useTheme } from "../theme/useTheme";
-import type { ThemeChoice } from "../theme/ThemeProvider";
-
-const LABEL: Record<ThemeChoice, string> = {
-  auto: "Тема: авто",
-  light: "Тема: светлая",
-  dark: "Тема: тёмная (графит)",
-  emerald: "Тема: изумрудная",
-};
+import type { ResolvedTheme, ThemeChoice } from "../theme/ThemeProvider";
 
 const ICON: Record<ThemeChoice, string> = {
   auto: "◐",
   light: "☀",
   dark: "☾",
-  emerald: "◆",
+};
+
+const RESOLVED_LABEL: Record<ResolvedTheme, string> = {
+  light: "светлая",
+  dark: "тёмная",
+};
+
+const LABEL: Record<ThemeChoice, string> = {
+  auto: "Тема: системная",
+  light: "Тема: светлая",
+  dark: "Тема: тёмная",
 };
 
 export function TopBar({ title = "Каталог" }: { title?: string } = {}) {
-  const { choice, cycle } = useTheme();
+  const { choice, resolved, cycle } = useTheme();
+  const label =
+    choice === "auto"
+      ? `${LABEL.auto} (сейчас ${RESOLVED_LABEL[resolved]})`
+      : LABEL[choice];
   return (
     <header className="top-bar">
       <h1 className="top-bar__title">{title}</h1>
@@ -24,8 +31,8 @@ export function TopBar({ title = "Каталог" }: { title?: string } = {}) {
         type="button"
         className="top-bar__icon"
         onClick={cycle}
-        aria-label={LABEL[choice]}
-        title={LABEL[choice]}
+        aria-label={label}
+        title={label}
       >
         {ICON[choice]}
       </button>

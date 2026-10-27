@@ -1,7 +1,7 @@
 import { createContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-export type ThemeChoice = "auto" | "light" | "dark" | "emerald";
-export type ResolvedTheme = "light" | "dark" | "emerald";
+export type ThemeChoice = "auto" | "light" | "dark";
+export type ResolvedTheme = "light" | "dark";
 
 const STORAGE_KEY = "miet.theme";
 
@@ -30,7 +30,10 @@ function detectSystem(): ResolvedTheme {
 function readStoredChoice(): ThemeChoice {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw === "auto" || raw === "light" || raw === "dark" || raw === "emerald") return raw;
+    if (raw === "auto" || raw === "light" || raw === "dark") return raw;
+    // Миграция: legacy-значение "emerald" сведено к "auto",
+    // чтобы пользователи не застряли в недоступной теме.
+    if (raw === "emerald") return "auto";
   } catch {
     /* ignore */
   }
@@ -64,7 +67,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   };
 
   const cycle = () => {
-    const order: ThemeChoice[] = ["auto", "light", "dark", "emerald"];
+    const order: ThemeChoice[] = ["auto", "light", "dark"];
     const idx = order.indexOf(choice);
     setChoice(order[(idx + 1) % order.length]);
   };
