@@ -164,10 +164,30 @@ async def unblock_user(session: AsyncSession, user_id: int) -> User:
     user = await session.get(User, user_id)
     if user is None:
         raise ValueError("Пользователь не найден.")
-    user.status = "active"
-    user.is_active = True
     user.blocked_until = None
     user.block_reason = None
+    # Восстанавливаем статус по истории заявок: иначе пользователь окажется
+    # active без ролей, что даст доступ к каталогу в обход одобрения.
+    from app.models.user import RegistrationRequest
+
+    result = await session.execute(
+        select(RegistrationRequest.status).where(
+            RegistrationRequest.user_id == user_id
+        )
+    )
+    statuses = {row[0] for row in result.all()}
+    if "approved" in statuses:
+        user.status = "active"
+        user.is_active = True
+    elif "pending" in statuses:
+        user.status = "pending"
+        user.is_active = False
+    elif "rejected" in statuses:
+        user.status = "rejected"
+        user.is_active = False
+    else:
+        user.status = "pending"
+        user.is_active = False
     await session.flush()
     fresh = await reload_with_roles(session, user.id)
     assert fresh is not None
@@ -179,6 +199,9 @@ async def ensure_admin_bootstrap(session: AsyncSession, user: User) -> User:
     from app.core.config import settings
 
     if user.telegram_id not in settings.admin_ids:
+        return user
+    if user.status == "blocked":
+        # Заблокированный админ не обходит блокировку через /start.
         return user
     if user.status != "active":
         user.status = "active"

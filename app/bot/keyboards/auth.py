@@ -19,6 +19,18 @@ CLUB_LABELS = {
     CLUB_ROLE_PHOTOGRAPHER: "InFocus",
 }
 
+# Эмодзи-идентификатор клуба для кнопок, сводок и уведомлений.
+CLUB_EMOJI = {
+    CLUB_ROLE_VIDEOGRAPHER: "📹",
+    CLUB_ROLE_PHOTOGRAPHER: "📷",
+}
+
+# Эмодзи-идентификатор клуба для кнопок, сводок и уведомлений.
+CLUB_EMOJI = {
+    CLUB_ROLE_VIDEOGRAPHER: "📹",
+    CLUB_ROLE_PHOTOGRAPHER: "📷",
+}
+
 # Порядок отображения клубов: МИЭТ-ТВ, InFocus
 CLUB_ORDER = [CLUB_ROLE_VIDEOGRAPHER, CLUB_ROLE_PHOTOGRAPHER]
 
@@ -32,15 +44,11 @@ def clubs_choice_kb(selected: set[str]) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for code in CLUB_ORDER:
         kb.button(
-            text=f"{_toggle_mark(code in selected)} {CLUB_LABELS[code]}",
+            text=f"{_toggle_mark(code in selected)} {CLUB_EMOJI[code]} {CLUB_LABELS[code]}",
             callback_data=f"register:toggle:{code}",
         )
     kb.adjust(1)
-    # Подтвердить показываем всегда, но если ничего не выбрано — disable не нужен,
-    # бот просто объяснит. Это проще и надёжнее.
-    kb.row(
-        # Важно: одно _button, но т.к. adjust(1) сломает это, добавим отдельной строкой.
-    )
+    # Подтвердить показываем всегда: если ничего не выбрано, бот объяснит.
     kb.button(text="✅ Подтвердить", callback_data="register:confirm")
     kb.adjust(1)
     return kb.as_markup()
@@ -49,7 +57,39 @@ def clubs_choice_kb(selected: set[str]) -> InlineKeyboardMarkup:
 def pending_after_submit_kb() -> InlineKeyboardMarkup:
     """Под заявкой после подтверждения."""
     kb = InlineKeyboardBuilder()
-    kb.button(text="↩️ Вернуться назад", callback_data="register:edit")
+    kb.button(
+        text="✏️ Изменить выбор",
+        callback_data="register:edit",
+    )
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def restart_after_reject_kb() -> InlineKeyboardMarkup:
+    """Кнопка для отклонённого пользователя: попробовать подать заявку снова."""
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🔁 Подать заново", callback_data="register:restart")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def extra_clubs_kb(available: list[str], selected: set[str]) -> InlineKeyboardMarkup:
+    """Клавиатура для active-пользователя: подать заявку во второй клуб.
+
+    available — клубы, в которых пользователь ещё не состоит.
+    selected — текущий выбор в этом диалоге (включая pending).
+    """
+    kb = InlineKeyboardBuilder()
+    for code in available:
+        kb.button(
+            text=(
+                f"{_toggle_mark(code in selected)} "
+                f"{CLUB_EMOJI[code]} {CLUB_LABELS[code]}"
+            ),
+            callback_data=f"register:extra_toggle:{code}",
+        )
+    kb.adjust(1)
+    kb.button(text="✅ Отправить", callback_data="register:extra_confirm")
     kb.adjust(1)
     return kb.as_markup()
 

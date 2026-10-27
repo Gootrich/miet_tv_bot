@@ -71,8 +71,9 @@ async def sync_requests(
 
     await session.flush()
 
-    # Возвращаем актуальный pending-набор
-    return await list_pending_for_user(session, user_id)
+    # Возвращаем только что созданные заявки. Существующие pending не
+    # возвращаем, чтобы не отправлять повторные уведомления админам.
+    return created
 
 
 async def cancel_pending(session: AsyncSession, user_id: int) -> None:
@@ -104,6 +105,11 @@ async def recompute_user_status(session: AsyncSession, user_id: int) -> User:
     reqs = list(result.scalars().all())
     statuses = [r.status for r in reqs]
 
+    if user.status == "blocked":
+        # Блокировка приоритетнее любых заявок: approve не должен её снимать.
+        await session.flush()
+        return user
+
     if "approved" in statuses:
         user.status = "active"
         user.is_active = True
@@ -112,6 +118,10 @@ async def recompute_user_status(session: AsyncSession, user_id: int) -> User:
         user.is_active = False
     elif "rejected" in statuses:
         user.status = "rejected"
+        user.is_active = False
+    else:
+        # Ни одной заявки — возвращаем в исходное состояние.
+        user.status = "pending"
         user.is_active = False
 
     await session.flush()
@@ -124,7 +134,12 @@ async def approve_request(
     approver_id: int | None,
 ) -> RegistrationRequest:
     """Одобрить заявку, выдать роль, пересчитать статус пользователя."""
-    req = await session.get(RegistrationRequest, request_id)
+    result = await session.execute(
+        select(RegistrationRequest)
+        .where(RegistrationRequest.id == request_id)
+        .with_for_update()
+    )
+    req = result.scalar_one_or_none()
     if req is None:
         raise ValueError("Заявка не найдена.")
     if req.status != "pending":
@@ -150,7 +165,12 @@ async def reject_request(
     approver_id: int | None,
     reason: str = "",
 ) -> RegistrationRequest:
-    req = await session.get(RegistrationRequest, request_id)
+    result = await session.execute(
+        select(RegistrationRequest)
+        .where(RegistrationRequest.id == request_id)
+        .with_for_update()
+    )
+    req = result.scalar_one_or_none()
     if req is None:
         raise ValueError("Заявка не найдена.")
     if req.status != "pending":
