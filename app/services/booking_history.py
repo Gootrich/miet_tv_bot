@@ -7,6 +7,7 @@
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.booking_history import BookingHistory
 
@@ -45,6 +46,7 @@ async def list_history(
     stmt = (
         select(BookingHistory)
         .where(BookingHistory.booking_id == booking_id)
+        .options(selectinload(BookingHistory.actor))
         .order_by(BookingHistory.created_at.asc(), BookingHistory.id.asc())
     )
     result = await session.execute(stmt)
@@ -79,6 +81,7 @@ async def list_all_history(
 
     stmt = (
         select(BookingHistory)
+        .options(selectinload(BookingHistory.actor))
         .order_by(
             BookingHistory.created_at.desc(),
             BookingHistory.id.desc(),

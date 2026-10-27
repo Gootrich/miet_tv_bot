@@ -190,6 +190,20 @@ async def update_model(
     if "tracking_type" in fields and fields["tracking_type"] is not None:
         if fields["tracking_type"] not in TRACKING_TYPES:
             raise ValueError("Некорректный tracking_type.")
+        # Q6.2: запрет смены при активных бронированиях (pending/confirmed).
+        if fields["tracking_type"] != m.tracking_type:
+            from app.models.booking import Booking as _Booking
+            active_res = await session.execute(
+                select(_Booking.id).where(
+                    _Booking.model_id == m.id,
+                    _Booking.status.in_(("pending", "confirmed")),
+                ).limit(1)
+            )
+            if active_res.scalar_one_or_none() is not None:
+                raise ValueError(
+                    "Нельзя сменить tracking_type: есть активные "
+                    "бронирования этой модели."
+                )
         m.tracking_type = fields["tracking_type"]
     if "total_quantity" in fields and fields["total_quantity"] is not None:
         if fields["total_quantity"] < 0:

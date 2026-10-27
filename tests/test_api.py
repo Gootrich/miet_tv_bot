@@ -35,6 +35,8 @@ from app.models.booking import Booking
 from app.models.booking_history import BookingHistory
 from app.models.user import User
 from app.services import booking as booking_service
+from app.services import admin_equipment as admin_eq
+from app.services.booking_history import list_all_history
 
 
 def _build_test_metadata() -> MetaData:
@@ -648,6 +650,216 @@ async def test_mutation_returns_full_detail_for_old_booking(
         assert detailed.user.full_name == "Test User"
         assert detailed.model is not None
         assert detailed.model.name == "Test Model"
+
+
+async def test_move_booking_rejects_past_start(
+    booking_session_factory: dict,
+) -> None:
+    """Q6.1: перенос в прошлое (>60 сек) отклоняется на backend."""
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+    bid = ctx["booking_ids"][0]
+    past = datetime(2020, 1, 1, 12, 0, tzinfo=timezone.utc)
+    future = datetime(2031, 1, 1, 12, 0, tzinfo=timezone.utc)
+
+    async with factory() as session:
+        user = await session.get(User, ctx["user_id"])
+        with pytest.raises(FastAPIHTTPException) as exc_info:
+            await booking_service.move_booking(
+                session, bid, user,
+                new_start=past.isoformat(),
+                new_end=future.isoformat(),
+            )
+        assert exc_info.value.status_code == 400
+        assert "прошлое" in exc_info.value.detail
+
+
+async def test_move_booking_rechecks_access_policy_model(
+    booking_session_factory: dict,
+) -> None:
+    """Q6.2: при переносе повторно проверяется access_policy модели."""
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+
+    async with factory() as session:
+        cat_id = (await session.execute(
+            select(Category).where(Category.code == "test")
+        )).scalar_one().id
+        m = EquipmentModel(
+            category_id=cat_id, name="Photo Only",
+            access_policy="photographer", tracking_type="quantity",
+            total_quantity=5,
+        )
+        session.add(m)
+        await session.flush()
+        start = datetime(2030, 2, 1, tzinfo=timezone.utc)
+        end = datetime(2030, 2, 2, tzinfo=timezone.utc)
+        b = Booking(
+            user_id=ctx["user_id"], model_id=m.id, quantity=1,
+            planned_start=start, planned_end=end, status="pending",
+        )
+        session.add(b)
+        await session.commit()
+        new_bid = b.id
+
+    async with factory() as session:
+        user = await session.get(User, ctx["user_id"])
+        new_start = datetime(2031, 1, 1, 12, 0, tzinfo=timezone.utc)
+        new_end = datetime(2031, 1, 2, 12, 0, tzinfo=timezone.utc)
+        with pytest.raises(FastAPIHTTPException) as exc_info:
+            await booking_service.move_booking(
+                session, new_bid, user,
+                new_start=new_start.isoformat(),
+                new_end=new_end.isoformat(),
+            )
+        assert exc_info.value.status_code == 403
+
+
+async def test_move_booking_rechecks_access_policy_item(
+    booking_session_factory: dict,
+) -> None:
+    """Q6.2: для item-брони тоже проверяется access_policy модели."""
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+
+    async with factory() as session:
+        cat_id = (await session.execute(
+            select(Category).where(Category.code == "test")
+        )).scalar_one().id
+        m = EquipmentModel(
+            category_id=cat_id, name="Photo Item",
+            access_policy="photographer", tracking_type="individual",
+            total_quantity=1,
+        )
+        session.add(m)
+        await session.flush()
+        it = EquipmentItem(
+            model_id=m.id, inventory_number="PHOTO-001", status="active",
+        )
+        session.add(it)
+        await session.flush()
+        start = datetime(2030, 3, 1, tzinfo=timezone.utc)
+        end = datetime(2030, 3, 2, tzinfo=timezone.utc)
+        b = Booking(
+            user_id=ctx["user_id"], item_id=it.id, quantity=1,
+            planned_start=start, planned_end=end, status="pending",
+        )
+        session.add(b)
+        await session.commit()
+        new_bid = b.id
+
+    async with factory() as session:
+        user = await session.get(User, ctx["user_id"])
+        new_start = datetime(2031, 5, 1, 12, 0, tzinfo=timezone.utc)
+        new_end = datetime(2031, 5, 2, 12, 0, tzinfo=timezone.utc)
+        with pytest.raises(FastAPIHTTPException) as exc_info:
+            await booking_service.move_booking(
+                session, new_bid, user,
+                new_start=new_start.isoformat(),
+                new_end=new_end.isoformat(),
+            )
+        assert exc_info.value.status_code == 403
+
+
+async def test_update_model_tracking_type_blocked_with_active_bookings(
+    booking_session_factory: dict,
+) -> None:
+    """Q6.2: смена tracking_type при pending/confirmed брони запрещена."""
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+    async with factory() as session:
+        model_id = (await session.execute(
+            select(EquipmentModel).where(EquipmentModel.name == "Test Model")
+        )).scalar_one().id
+        with pytest.raises(ValueError, match="tracking_type"):
+            await admin_eq.update_model(
+                session, model_id=model_id, tracking_type="individual",
+            )
+
+
+async def test_update_model_tracking_type_allowed_without_bookings(
+    booking_session_factory: dict,
+) -> None:
+    """Смена tracking_type без броней разрешена."""
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+    async with factory() as session:
+        cat_id = (await session.execute(
+            select(Category).where(Category.code == "test")
+        )).scalar_one().id
+        m = EquipmentModel(
+            category_id=cat_id, name="No Bookings",
+            access_policy="all", tracking_type="quantity",
+            total_quantity=5,
+        )
+        session.add(m)
+        await session.commit()
+        new_id = m.id
+    async with factory() as session:
+        result = await admin_eq.update_model(
+            session, model_id=new_id, tracking_type="individual",
+        )
+        assert result.tracking_type == "individual"
+
+
+async def test_history_includes_actor_full_name_and_username(
+    booking_session_factory: dict,
+) -> None:
+    """Q6.3: событие истории содержит имя и @username актора."""
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+    async with factory() as session:
+        session.add(BookingHistory(
+            booking_id=ctx["booking_ids"][0],
+            actor_user_id=ctx["user_id"],
+            event_type="created",
+        ))
+        await session.commit()
+
+    async with factory() as session:
+        events = await list_all_history(session, limit=20)
+        assert events, "ожидалось хотя бы одно событие"
+        target = next(e for e in events if e.actor_user_id == ctx["user_id"])
+        assert target.actor is not None
+        assert target.actor.full_name == "Test User"
+        assert target.actor.username == "test_user"
+        assert target.actor_full_name == "Test User"
+        assert target.actor_username == "test_user"
+
+
+async def test_remove_last_admin_forbidden(
+    booking_session_factory: dict,
+) -> None:
+    """Защита последнего admin: снятие единственного admin запрещено."""
+    from app.models.user import Role, UserRole
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+
+    async with factory() as session:
+        role = (await session.execute(
+            select(Role).where(Role.code == "admin")
+        )).scalar_one_or_none()
+        if role is None:
+            role = Role(code="admin", name="Admin", scopes=["admin:super"])
+            session.add(role)
+            await session.flush()
+        # target — единственный admin
+        session.add(UserRole(user_id=ctx["user_id"], role_id=role.id))
+        # отдельный actor (не admin) — чтобы не блокировало self-removal
+        actor = User(
+            telegram_id=888, full_name="Actor",
+            status="active", is_active=True,
+        )
+        session.add(actor)
+        await session.commit()
+        actor_id = actor.id
+
+    async with factory() as session:
+        with pytest.raises(ValueError, match="последнего"):
+            await admin_eq.remove_role_from_user(
+                session, user_id=ctx["user_id"], role_code="admin",
+                actor_id=actor_id,
+            )
 
 
 async def test_cancel_group_not_owner(

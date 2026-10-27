@@ -191,6 +191,8 @@ class BookingHistoryOut(BaseModel):
     id: int
     booking_id: int
     actor_user_id: int | None = None
+    actor_full_name: str | None = None
+    actor_username: str | None = None
     event_type: str
     details: str | None = None
     created_at: datetime

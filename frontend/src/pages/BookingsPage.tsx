@@ -807,7 +807,7 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
                     <p className="card__subtitle">Бронь #{e.booking_id}</p>
                     <p className="card__subtitle">
                       {fmt(e.created_at)}
-                      {e.actor_user_id != null ? ` · актор: ${e.actor_user_id}` : ""}
+                      {e.actor_full_name ? ` · ${e.actor_full_name}${e.actor_username ? ` (@${e.actor_username})` : ""}` : ""}
                     </p>
                     {e.details && (
                       <p className="card__subtitle" style={{ opacity: 0.8 }}>{e.details}</p>

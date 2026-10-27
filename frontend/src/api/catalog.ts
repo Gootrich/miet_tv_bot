@@ -181,6 +181,8 @@ export interface BookingHistoryOut {
   id: number;
   booking_id: number;
   actor_user_id: number | null;
+  actor_full_name?: string | null;
+  actor_username?: string | null;
   event_type: "created" | "checkout" | "return" | "cancelled" | "moved" | string;
   details: string | null;
   created_at: string;

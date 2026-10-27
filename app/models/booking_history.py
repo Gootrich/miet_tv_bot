@@ -43,3 +43,11 @@ class BookingHistory(Base):
     booking: Mapped["Booking"] = relationship()
 
     actor: Mapped["User | None"] = relationship()
+
+    @property
+    def actor_full_name(self) -> str | None:
+        return self.actor.full_name if self.actor is not None else None
+
+    @property
+    def actor_username(self) -> str | None:
+        return self.actor.username if self.actor is not None else None

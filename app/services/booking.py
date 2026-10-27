@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
@@ -434,6 +434,12 @@ async def move_booking(
     start_dt = _parse_dt(new_start)
     end_dt = _parse_dt(new_end)
 
+    # Q6.1: перенос не в прошлом. Допуск 60 сек на round-trip,
+    # чтобы «перенести на сейчас» не отваливалось ложно.
+    now = datetime.now(timezone.utc)
+    if start_dt < now - timedelta(seconds=60):
+        raise HTTPException(400, "Нельзя перенести бронь в прошлое.")
+
     # Быстрая проверка прав до входа в lock (не трогая БД).
     booking_pre = await session.get(Booking, booking_id)
     if booking_pre is None:
@@ -483,6 +489,13 @@ async def move_booking(
                     )
                     if model is None:
                         raise HTTPException(404, "Модель не найдена.")
+                    # Q6.2: повторная проверка access_policy при переносе.
+                    if not _can_book(user, model.access_policy):
+                        raise HTTPException(
+                            403,
+                            f"Нет доступа к технике с политикой "
+                            f"'{model.access_policy}'.",
+                        )
                     # Сумма активных броней НА ДРУГИЕ брони (исключая
                     # текущую) на новый интервал.
                     sum_result = await tx.execute(
@@ -506,6 +519,20 @@ async def move_booking(
                         )
 
                 if booking.item_id is not None:
+                    # Q6.2: повторная проверка access_policy для item-брони.
+                    item_row = await tx.get(EquipmentItem, booking.item_id)
+                    if item_row is not None:
+                        item_model = await tx.get(
+                            EquipmentModel, item_row.model_id
+                        )
+                        if item_model is not None and not _can_book(
+                            user, item_model.access_policy
+                        ):
+                            raise HTTPException(
+                                403,
+                                f"Нет доступа к технике с политикой "
+                                f"'{item_model.access_policy}'.",
+                            )
                     overlap_result = await tx.execute(
                         select(Booking.id)
                         .where(
