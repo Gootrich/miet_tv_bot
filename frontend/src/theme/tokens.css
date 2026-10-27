@@ -153,4 +153,9 @@
   --md-type-body-medium: 400 14px/1.5 var(--md-font-body);
   --md-type-label-large: 500 14px/1.35 var(--md-font-body);
   --md-type-label-medium: 500 12px/1.35 var(--md-font-body);
+
+  /* layout: floating bottom navigation */
+  --bottom-nav-height: 76px;
+  --bottom-nav-gap: var(--md-space-3);
+  --bottom-nav-safe: env(safe-area-inset-bottom, 0px);
 }

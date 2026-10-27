@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { CatalogPage } from "./pages/CatalogPage";
+import { OccupancyPage } from "./pages/OccupancyPage";
 import { BookingsPage } from "./pages/BookingsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { DevUserSwitcher } from "./components/DevUserSwitcher";
 import { ToastProvider } from "./components/Toast";
 
-type Page = "catalog" | "bookings" | "profile";
+type Page = "catalog" | "occupancy" | "bookings" | "profile";
 
 const PAGE_STORAGE_KEY = "miet.page";
-const ALLOWED: Page[] = ["catalog", "bookings", "profile"];
+const ALLOWED: Page[] = ["catalog", "occupancy", "bookings", "profile"];
 
 function readStoredPage(): Page {
   try {
@@ -37,9 +38,10 @@ export default function App() {
   return (
     <ToastProvider>
       {isDev && <DevUserSwitcher />}
-      {page === "bookings" && <BookingsPage onNavigate={navigate} />}
-      {page === "profile" && <ProfilePage onNavigate={navigate} />}
-      {page === "catalog" && <CatalogPage onNavigate={navigate} />}
+      {page === "catalog"   && <CatalogPage   onNavigate={navigate} />}
+      {page === "occupancy" && <OccupancyPage onNavigate={navigate} />}
+      {page === "bookings"  && <BookingsPage  onNavigate={navigate} />}
+      {page === "profile"   && <ProfilePage   onNavigate={navigate} />}
     </ToastProvider>
   );
 }

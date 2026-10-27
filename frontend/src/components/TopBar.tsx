@@ -15,11 +15,11 @@ const ICON: Record<ThemeChoice, string> = {
   emerald: "◆",
 };
 
-export function TopBar() {
+export function TopBar({ title = "Каталог" }: { title?: string } = {}) {
   const { choice, cycle } = useTheme();
   return (
     <header className="top-bar">
-      <h1 className="top-bar__title">Каталог</h1>
+      <h1 className="top-bar__title">{title}</h1>
       <button
         type="button"
         className="top-bar__icon"

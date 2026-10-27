@@ -1,7 +1,8 @@
 const TABS = [
-  { id: "catalog",  label: "Главная",  icon: "▤" },
-  { id: "bookings", label: "Брони",    icon: "📅" },
-  { id: "profile",  label: "Профиль",  icon: "◍" },
+  { id: "catalog",   label: "Каталог",   icon: "▤" },
+  { id: "occupancy", label: "Занятость", icon: "🗓" },
+  { id: "bookings",  label: "Брони",     icon: "📅" },
+  { id: "profile",   label: "Профиль",   icon: "◍" },
 ] as const;
 
 export function BottomNav({
