@@ -103,7 +103,7 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
   return (
     <div className="page">
       <TopBar />
-      <main className="page__content">
+      <main className={`page__content${selected.size > 0 ? " page__content--with-fab" : ""}`}>
         <label className="search" aria-label="Поиск оборудования">
           <span className="search__icon" aria-hidden="true">⌕</span>
           <input
@@ -192,8 +192,6 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
             : "Источник: API каталога."}
         </p>
 
-        {/* Отступ, чтобы fab-bar не закрывал последнюю карточку */}
-        {selected.size > 0 && <div style={{ height: 80 }} />}
       </main>
 
       {/* Плавающая панель «N выбрано» */}

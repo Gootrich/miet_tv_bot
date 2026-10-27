@@ -2,12 +2,7 @@ import { useState } from "react";
 import { createBooking, type CatalogItem } from "../api/catalog";
 import { DateTimeRangePicker, type DTRange } from "./DateTimeRangePicker";
 import { QuantityStepper } from "./QuantityStepper";
-
-const ICON: Record<CatalogItem["icon"], string> = {
-  camera: "📷",
-  light: "💡",
-  mic: "🎙",
-};
+import { EquipmentThumb } from "./EquipmentThumb";
 
 function formatFreeUntil(iso: string | null): string {
   if (!iso) return "";
@@ -112,6 +107,7 @@ export function EquipmentCard({
         onClick={handleToggleOpen}
         aria-expanded={open}
       >
+        <EquipmentThumb categoryCode={item.categoryCode} title={item.title} />
         <div className="row-head__main">
           <span className="row-head__title">{item.title}</span>
           <span className="row-head__meta">
@@ -125,7 +121,6 @@ export function EquipmentCard({
             {av.text}
           </span>
         </div>
-        <span className="row-head__icon" aria-hidden="true">{ICON[item.icon]}</span>
         {onToggleSelect && (
           <span
             role="button"
