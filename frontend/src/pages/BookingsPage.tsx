@@ -5,6 +5,7 @@ import { Modal } from "../components/Modal";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { useToast } from "../components/Toast";
 import { ChipsRow, type ChipItem } from "../components/ChipsRow";
+import { IconAlert, IconInbox } from "../components/Icons";
 import { DateTimeRangePicker, type DTRange } from "../components/DateTimeRangePicker";
 import { AuthRequired } from "../components/AuthRequired";
 import { isAuthError, type ApiError } from "../api/client";
@@ -82,6 +83,14 @@ function statusInfo(status: string) {
     case "cancelled": return { label: "Отменено", cls: "status-chip--error",   dot: "status-dot--error"   };
     default:          return { label: status,     cls: "status-chip",          dot: ""                    };
   }
+}
+
+function fmtShort(dt: string | null | undefined): string {
+  if (!dt) return "—";
+  const d = new Date(dt);
+  const date = d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+  const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  return `${date} · ${time}`;
 }
 
 function fmt(dt: string | null | undefined): string {
@@ -545,9 +554,8 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
 
   return (
     <div className="page bookings-page">
-      <TopBar />
+      <TopBar title="Брони" />
       <main className="page__content">
-        <h1 className="section-title">Бронирования</h1>
 
         <div className="segmented" role="tablist" aria-label="Разделы броней">
           <button type="button" role="tab"
@@ -574,7 +582,7 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
         )}
 
         {tab !== "history" && (
-          <label className="card__subtitle" style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
+          <label className="booking-filter">
             <input type="checkbox" checked={showCancelled}
               onChange={(e) => setShowCancelled(e.target.checked)} />
             Показывать отменённые
@@ -588,17 +596,17 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
           />
         )}
         {tab !== "history" && state.kind === "loading" && (
-          <p className="empty__text">Загрузка…</p>
+          <div className="empty"><span className="spinner" aria-hidden="true" /><p className="empty__text">Загрузка…</p></div>
         )}
         {tab !== "history" && state.kind === "error" && (
           <div className="empty">
-            <p className="empty__text">Ошибка: {state.message}</p>
+            <span className="empty__icon" aria-hidden="true"><IconAlert size={22} /></span><p className="empty__text">Ошибка: {state.message}</p>
             <button className="empty__action" type="button" onClick={() => loadBookings("replace")}>Повторить</button>
           </div>
         )}
         {tab !== "history" && state.kind === "ready" && groups.length === 0 && (
           <div className="empty">
-            <p className="empty__text">{tab === "mine" ? "Нет ваших броней" : "Нет броней"}</p>
+            <span className="empty__icon" aria-hidden="true"><IconInbox size={22} /></span><p className="empty__text">{tab === "mine" ? "Нет ваших броней" : "Нет броней"}</p>
           </div>
         )}
 
@@ -632,8 +640,7 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
                       {mine && ` (id ${g.primary.user_id})`}
                     </p>
                   )}
-                  <p className="card__subtitle">С: {fmt(g.primary.planned_start)}</p>
-                  <p className="card__subtitle">По: {fmt(g.primary.planned_end)}</p>
+                  <div className="booking-time">{fmtShort(g.primary.planned_start)} <span className="booking-time__sep">→</span> {fmtShort(g.primary.planned_end)}</div>
                   {g.primary.comment && (
                     <p className="card__subtitle" style={{ opacity: 0.85 }}>
                       Комментарий: {g.primary.comment}
@@ -669,16 +676,16 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
                   )}
 
                   {(allBookings.length === 1 || expandedGroups.has(g.group_id)) && (
-                  <div style={{ marginTop: 8, borderTop: "1px solid var(--md-sys-color-outline-variant)", paddingTop: 8 }}>
+                  <div className="booking-positions">
                     {allBookings.map((b) => {
                       const bs = statusInfo(b.status);
                       const bMine = meId != null && b.user_id === meId;
                       const canCheckout = bMine && b.actual_checkout == null && (b.status === "pending" || b.status === "confirmed");
                       const canReturn = bMine && b.actual_checkout != null && b.actual_return == null;
                       return (
-                        <div key={b.id} style={{ marginBottom: 8 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                            <span className="card__subtitle">
+                        <div key={b.id} className="booking-positions__row">
+                          <div className="booking-positions__head">
+                            <span className="booking-positions__name">
                               {b.model_name ?? `Модель #${b.model_id}`}
                               {b.item_inventory_number ? ` · инв. №${b.item_inventory_number}` : ` · ×${b.quantity}`}
                             </span>
@@ -715,7 +722,7 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
 
                   {/* Групповые действия */}
                   {mine && (
-                    <div className="row-actions" style={{ marginTop: 8, borderTop: "1px solid var(--md-sys-color-outline-variant)", paddingTop: 8 }}>
+                    <div className="row-actions booking-group-actions">
                       {allBookings.length > 1 &&
                         allBookings.every((b) => b.actual_checkout == null && (b.status === "pending" || b.status === "confirmed")) && (
                           <button type="button" className="card__cta"
@@ -752,7 +759,7 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
         )}
 
         {tab !== "history" && canLoadMore && (
-          <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+          <div className="booking-loadmore">
             <button type="button" className="empty__action"
               onClick={() => loadBookings("append")}>Показать ещё</button>
           </div>
@@ -786,15 +793,15 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
                 onRetry={() => loadHistory("replace")}
               />
             )}
-            {history.kind === "loading" && <p className="empty__text">Загрузка истории…</p>}
+            {history.kind === "loading" && <div className="empty"><span className="spinner" aria-hidden="true" /><p className="empty__text">Загрузка истории…</p></div>}
             {history.kind === "error" && (
               <div className="empty">
-                <p className="empty__text">Ошибка: {history.message}</p>
+                <span className="empty__icon" aria-hidden="true"><IconAlert size={22} /></span><p className="empty__text">Ошибка: {history.message}</p>
                 <button className="empty__action" type="button" onClick={() => loadHistory("replace")}>Повторить</button>
               </div>
             )}
             {history.kind === "ready" && history.events.length === 0 && (
-              <div className="empty"><p className="empty__text">Событий пока нет</p></div>
+              <div className="empty"><span className="empty__icon" aria-hidden="true"><IconInbox size={22} /></span><p className="empty__text">Событий пока нет</p></div>
             )}
             {history.kind === "ready" && history.events.length > 0 && (
               <div className="list">
@@ -817,7 +824,7 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
               </div>
             )}
             {history.kind === "ready" && history.events.length === PAGE_SIZE && (
-              <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+              <div className="booking-loadmore">
                 <button type="button" className="empty__action" disabled={historyBusy}
                   onClick={() => loadHistory("append")}>{historyBusy ? "…" : "Показать ещё"}</button>
               </div>

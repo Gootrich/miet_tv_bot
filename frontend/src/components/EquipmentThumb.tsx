@@ -1,20 +1,30 @@
+import type { ComponentType } from "react";
+import {
+  IconAudio,
+  IconCamera,
+  IconLens,
+  IconLighting,
+  IconPower,
+  IconStabilizer,
+  IconStand,
+  IconStudio,
+} from "./Icons";
+
 interface Props {
   src?: string | null;
   categoryCode: string;
   title: string;
 }
 
-// Уникальный глиф на категорию — заглушка для случая без изображения.
-// Не используем один эмодзи на всё.
-const GLYPH: Record<string, string> = {
-  cameras: "📷",
-  lenses: "🔭",
-  stabilizers: "🎯",
-  lighting: "💡",
-  audio: "🎙",
-  stands: "🪜",
-  power: "🔌",
-  studio: "🎬",
+const GLYPH: Record<string, ComponentType<{ className?: string }>> = {
+  cameras: IconCamera,
+  lenses: IconLens,
+  stabilizers: IconStabilizer,
+  lighting: IconLighting,
+  audio: IconAudio,
+  stands: IconStand,
+  power: IconPower,
+  studio: IconStudio,
 };
 
 export function EquipmentThumb({ src, categoryCode, title }: Props) {
@@ -30,9 +40,11 @@ export function EquipmentThumb({ src, categoryCode, title }: Props) {
       </div>
     );
   }
+
+  const Icon = GLYPH[categoryCode];
   return (
     <div className={`thumb thumb--${categoryCode}`} aria-hidden="true">
-      {GLYPH[categoryCode] ?? "▦"}
+      {Icon ? <Icon className="thumb__icon" /> : null}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { BottomNav } from "../components/BottomNav";
 import { CategoryChips } from "../components/CategoryChips";
 import { EquipmentCard } from "../components/EquipmentCard";
 import { BatchBookingModal } from "../components/BatchBookingModal";
+import { IconAlert, IconSearch } from "../components/Icons";
 import { TopBar } from "../components/TopBar";
 import {
   categoryNames,
@@ -105,7 +106,7 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
       <TopBar />
       <main className={`page__content${selected.size > 0 ? " page__content--with-fab" : ""}`}>
         <label className="search" aria-label="Поиск оборудования">
-          <span className="search__icon" aria-hidden="true">⌕</span>
+          <span className="search__icon" aria-hidden="true"><IconSearch size={18} /></span>
           <input
             type="search"
             placeholder="Найти оборудование"
@@ -130,16 +131,16 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
           onSelect={setCategory}
         />
 
-        <section className="list" aria-label="Оборудование">
+        <section className="list list--catalog" aria-label="Оборудование">
           {state.kind === "loading" && (
             <div className="empty">
-              <p className="empty__text">Загрузка каталога…</p>
+              <span className="spinner" aria-hidden="true" /><p className="empty__text">Загрузка каталога…</p>
             </div>
           )}
 
           {state.kind === "error" && (
             <div className="empty">
-              <span className="empty__icon" aria-hidden="true">!</span>
+              <span className="empty__icon" aria-hidden="true"><IconAlert size={22} /></span>
               <p className="empty__text">
                 Не удалось загрузить каталог: {state.message}
               </p>
@@ -155,7 +156,7 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
 
           {state.kind === "ready" && visible.length === 0 && (
             <div className="empty">
-              <span className="empty__icon" aria-hidden="true">⌕</span>
+              <span className="empty__icon" aria-hidden="true"><IconSearch size={22} /></span>
               <p className="empty__text">
                 {isSearching
                   ? `Ничего не найдено по запросу «${query.trim()}»`

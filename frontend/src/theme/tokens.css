@@ -1,133 +1,98 @@
-/* MIET TV — design tokens (Rounded Minimal + M3) */
+/* MIET MediaHub — дизайн-токены (Mint Studio · Graphite) */
 
+/* ---------- Light (default) ---------- */
 :root,
 [data-theme="light"] {
   color-scheme: light;
 
-  /* primary — насыщенный небесно-синий */
-  --md-sys-color-primary: #2563EB;
+  /* Accent — mint */
+  --md-sys-color-primary: #20B99A;
   --md-sys-color-on-primary: #FFFFFF;
-  --md-sys-color-primary-container: #DBEAFE;
-  --md-sys-color-on-primary-container: #0F172A;
+  --md-sys-color-primary-container: #D7F2EA;
+  --md-sys-color-on-primary-container: #0B3A2E;
 
-  /* surface — пастельно-синий / белый */
-  --md-sys-color-surface: #F8FAFC;
-  --md-sys-color-surface-container-low: #F1F5F9;
+  /* Surfaces — нейтральные, без зелёного подтона */
+  --md-sys-color-surface: #F5F6F8;
+  --md-sys-color-surface-container-low: #EFF1F4;
   --md-sys-color-surface-container: #FFFFFF;
-  --md-sys-color-surface-container-high: #EEF2F7;
-  --md-sys-color-surface-variant: #E2E8F0;
-  --md-sys-color-on-surface: #0F172A;
-  --md-sys-color-on-surface-variant: #64748B;
-  --md-sys-color-outline: #94A3B8;
-  --md-sys-color-outline-variant: #E2E8F0;
+  --md-sys-color-surface-container-high: #ECEEF2;
+  --md-sys-color-surface-variant: #E1E4E9;
 
-  /* статусы */
+  /* Text */
+  --md-sys-color-on-surface: #191B20;
+  --md-sys-color-on-surface-variant: #6B707B;
+
+  /* Borders */
+  --md-sys-color-outline: #C5C9D0;
+  --md-sys-color-outline-variant: #E1E4E9;
+
+  /* Error */
   --md-sys-color-error: #DC2626;
   --md-sys-color-on-error: #FFFFFF;
   --md-sys-color-error-container: #FEE2E2;
-  --md-sys-color-on-error-container: #450A0A;
+  --md-sys-color-on-error-container: #7F1D1D;
 
-  --md-sys-color-success: #059669;
+  /* Success — true green, отличим от мятного акцента */
+  --md-sys-color-success: #15803D;
   --md-sys-color-on-success: #FFFFFF;
-  --md-sys-color-success-container: #D1FAE5;
-  --md-sys-color-on-success-container: #022C22;
+  --md-sys-color-success-container: #DCFCE7;
+  --md-sys-color-on-success-container: #14532D;
 
-  --md-sys-color-warning: #D97706;
+  /* Warning — янтарь */
+  --md-sys-color-warning: #B45309;
   --md-sys-color-on-warning: #FFFFFF;
   --md-sys-color-warning-container: #FEF3C7;
-  --md-sys-color-on-warning-container: #451A03;
+  --md-sys-color-on-warning-container: #78350F;
 
-  --md-sys-color-scrim: rgba(15, 23, 42, 0.32);
-
-  --md-elevation-1: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.08);
-  --md-elevation-2: 0 2px 6px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.06);
+  /* Scrim / elevation */
+  --md-sys-color-scrim: rgba(25, 27, 32, 0.32);
+  --md-elevation-1: 0 1px 2px rgba(25, 27, 32, 0.05), 0 1px 3px rgba(25, 27, 32, 0.06);
+  --md-elevation-2: 0 2px 6px rgba(25, 27, 32, 0.07), 0 1px 3px rgba(25, 27, 32, 0.05);
 }
 
+/* ---------- Dark — Graphite ---------- */
 [data-theme="dark"] {
   color-scheme: dark;
 
-  /* primary — индиго, нейтральный графит */
-  --md-sys-color-primary: #818CF8;
-  --md-sys-color-on-primary: #0F1115;
-  --md-sys-color-primary-container: #1E1B4B;
-  --md-sys-color-on-primary-container: #C7D2FE;
+  --md-sys-color-primary: #42D6B5;
+  --md-sys-color-on-primary: #052A22;
+  --md-sys-color-primary-container: #173D33;
+  --md-sys-color-on-primary-container: #B8EEE0;
 
-  /* surface — нейтральный графит */
-  --md-sys-color-surface: #0F1115;
-  --md-sys-color-surface-container-low: #15181E;
-  --md-sys-color-surface-container: #1A1D24;
-  --md-sys-color-surface-container-high: #232730;
-  --md-sys-color-surface-variant: #2A2F3A;
-  --md-sys-color-on-surface: #F1F5F9;
-  --md-sys-color-on-surface-variant: #94A3B8;
-  --md-sys-color-outline: #475569;
-  --md-sys-color-outline-variant: #2A2F3A;
+  /* Нейтральные графитовые поверхности */
+  --md-sys-color-surface: #121316;
+  --md-sys-color-surface-container-low: #17181C;
+  --md-sys-color-surface-container: #1B1C20;
+  --md-sys-color-surface-container-high: #24262B;
+  --md-sys-color-surface-variant: #2C2E34;
 
-  /* статусы */
+  --md-sys-color-on-surface: #E5E7EB;
+  --md-sys-color-on-surface-variant: #9CA1AC;
+
+  --md-sys-color-outline: #4A4C54;
+  --md-sys-color-outline-variant: #303238;
+
   --md-sys-color-error: #F87171;
   --md-sys-color-on-error: #1F0808;
-  --md-sys-color-error-container: #3F1212;
+  --md-sys-color-error-container: #451717;
   --md-sys-color-on-error-container: #FECACA;
 
-  --md-sys-color-success: #34D399;
-  --md-sys-color-on-success: #0F1115;
-  --md-sys-color-success-container: #0F2A1C;
-  --md-sys-color-on-success-container: #A7F3D0;
-
-  --md-sys-color-warning: #FBBF24;
-  --md-sys-color-on-warning: #1A0F00;
-  --md-sys-color-warning-container: #3A2600;
-  --md-sys-color-on-warning-container: #FDE68A;
-
-  --md-sys-color-scrim: rgba(0, 0, 0, 0.6);
-
-  --md-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
-  --md-elevation-2: 0 2px 6px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.4);
-}
-
-[data-theme="emerald"] {
-  color-scheme: dark;
-
-  /* primary — мягкий изумрудный */
-  --md-sys-color-primary: #34D399;
-  --md-sys-color-on-primary: #0B1315;
-  --md-sys-color-primary-container: #1F4A38;
-  --md-sys-color-on-primary-container: #BBF7D0;
-
-  /* surface — тёмный с выраженным зелёным подтоном, светлее графита */
-  --md-sys-color-surface: #131A17;
-  --md-sys-color-surface-container-low: #1A2420;
-  --md-sys-color-surface-container: #243028;
-  --md-sys-color-surface-container-high: #2F3D34;
-  --md-sys-color-surface-variant: #3A4A40;
-  --md-sys-color-on-surface: #ECFDF5;
-  --md-sys-color-on-surface-variant: #A7C2B3;
-  --md-sys-color-outline: #6B8578;
-  --md-sys-color-outline-variant: #3A4A40;
-
-  /* статусы */
-  --md-sys-color-error: #FCA5A5;
-  --md-sys-color-on-error: #2A0808;
-  --md-sys-color-error-container: #4A1414;
-  --md-sys-color-on-error-container: #FECACA;
-
-  --md-sys-color-success: #34D399;
-  --md-sys-color-on-success: #0B1315;
-  --md-sys-color-success-container: #1F4A38;
+  --md-sys-color-success: #4ADE80;
+  --md-sys-color-on-success: #052E16;
+  --md-sys-color-success-container: #14371F;
   --md-sys-color-on-success-container: #BBF7D0;
 
   --md-sys-color-warning: #FBBF24;
   --md-sys-color-on-warning: #1A0F00;
-  --md-sys-color-warning-container: #3F2A00;
+  --md-sys-color-warning-container: #3A2A00;
   --md-sys-color-on-warning-container: #FDE68A;
 
-  --md-sys-color-scrim: rgba(0, 0, 0, 0.55);
-
+  --md-sys-color-scrim: rgba(0, 0, 0, 0.6);
   --md-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
   --md-elevation-2: 0 2px 6px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-
+/* ---------- Static tokens (theme-independent) ---------- */
 :root {
   --md-shape-corner-sm: 8px;
   --md-shape-corner-md: 12px;
@@ -135,6 +100,9 @@
   --md-shape-corner-xl: 24px;
   --md-shape-corner-2xl: 28px;
   --md-shape-corner-full: 9999px;
+  /* алиасы: старый CSS использует -small/-medium */
+  --md-shape-corner-small: var(--md-shape-corner-sm);
+  --md-shape-corner-medium: var(--md-shape-corner-md);
 
   --md-space-1: 4px;
   --md-space-2: 8px;
@@ -153,8 +121,10 @@
   --md-type-body-medium: 400 14px/1.5 var(--md-font-body);
   --md-type-label-large: 500 14px/1.35 var(--md-font-body);
   --md-type-label-medium: 500 12px/1.35 var(--md-font-body);
+  --md-type-label-small: 500 11px/1.3 var(--md-font-body);
+  --md-type-body-small: 400 12px/1.45 var(--md-font-body);
+  --md-type-title-small: 600 14px/1.4 var(--md-font-body);
 
-  /* layout: floating bottom navigation */
   --bottom-nav-height: 76px;
   --bottom-nav-gap: var(--md-space-3);
   --bottom-nav-safe: env(safe-area-inset-bottom, 0px);

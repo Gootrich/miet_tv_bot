@@ -1,8 +1,15 @@
+import {
+  IconBookings,
+  IconCatalog,
+  IconOccupancy,
+  IconProfile,
+} from "./Icons";
+
 const TABS = [
-  { id: "catalog",   label: "Каталог",   icon: "▤" },
-  { id: "occupancy", label: "Занятость", icon: "🗓" },
-  { id: "bookings",  label: "Брони",     icon: "📅" },
-  { id: "profile",   label: "Профиль",   icon: "◍" },
+  { id: "catalog",   label: "Каталог",   Icon: IconCatalog },
+  { id: "occupancy", label: "Занятость", Icon: IconOccupancy },
+  { id: "bookings",  label: "Брони",     Icon: IconBookings },
+  { id: "profile",   label: "Профиль",   Icon: IconProfile },
 ] as const;
 
 export function BottomNav({
@@ -25,7 +32,7 @@ export function BottomNav({
             onClick={() => onSelect?.(tab.id)}
           >
             <span className="bottom-nav__pill">
-              <span className="bottom-nav__icon" aria-hidden="true">{tab.icon}</span>
+              <tab.Icon className="bottom-nav__icon" size={22} />
             </span>
             <span className="bottom-nav__label">{tab.label}</span>
           </button>

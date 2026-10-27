@@ -226,6 +226,7 @@ export function OccupancyWeekGrid({
             >
               <span className="occ-week__day-wd">{weekdayShort(d)}</span>
               <span className="occ-week__day-num">{d.getDate()}</span>
+              <span className="occ-week__day-dot" data-l={lv} style={{ "--l": lv } as React.CSSProperties} aria-hidden="true" />
             </button>
           );
         })}
@@ -247,7 +248,7 @@ export function OccupancyWeekGrid({
               >
                 <span className="occ-week__label-user">{row.user}</span>
                 <span className="occ-week__label-models" title={row.models}>
-                  {row.models}
+                  {formatTimeRange(row.startMs, row.endMs)}
                 </span>
               </button>
             );

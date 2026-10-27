@@ -1,4 +1,5 @@
 import type { ApiError } from "../api/client";
+import { IconAlert, IconLock } from "./Icons";
 
 interface AuthRequiredProps {
   error: ApiError;
@@ -24,6 +25,9 @@ export function AuthRequired({ error, onRetry }: AuthRequiredProps) {
 
   return (
     <div className="empty">
+      <span className="empty__icon" aria-hidden="true">
+        {is401 ? <IconLock size={22} /> : <IconAlert size={22} />}
+      </span>
       <h2 className="card__title">
         {is401 ? "Нужен вход через Telegram" : "Доступ ограничен"}
       </h2>

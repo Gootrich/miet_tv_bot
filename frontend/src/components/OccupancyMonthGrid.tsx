@@ -88,7 +88,6 @@ export function OccupancyMonthGrid({
           const cls = [
             "occ-month__cell",
             inMonth ? "" : "is-out",
-            `occ-month__cell--l${info.level}`,
             isToday ? "is-today" : "",
             isSelected ? "is-selected" : "",
           ]
@@ -110,7 +109,6 @@ export function OccupancyMonthGrid({
                   style={{ width: `${Math.min(100, Math.round(info.util * 100))}%` }}
                 />
               </span>
-              <span className="occ-month__pct">{inMonth ? percentLabel(info.util) : ""}</span>
             </button>
           );
         })}

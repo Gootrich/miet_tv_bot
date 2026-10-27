@@ -1,12 +1,160 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#20B99A" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#121316" media="(prefers-color-scheme: dark)" />
+    <meta name="description" content="MIET MediaHub — бронирование медиатехники университетских медиаклубов" />
+    <title>MIET MediaHub</title>
+    <script>
+      // Anti-FOUC: ставим data-theme до рендера React, чтобы тёмная
+      // тема не мигала светлой при загрузке.
+      (function () {
+        try {
+          var stored = localStorage.getItem("miet.theme");
+          var resolved;
+          if (stored === "light" || stored === "dark") {
+            resolved = stored;
+          } else {
+            resolved = window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+          }
+          document.documentElement.dataset.theme = resolved;
+        } catch (e) {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <style>
+      /* Critical loader styles — работают до загрузки tokens.css. */
+      #app-loader {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        z-index: 9999;
+        background: var(--md-sys-color-surface, #F5F6F8);
+        transition: opacity 500ms ease;
+      }
+      [data-theme="dark"] #app-loader {
+        background: var(--md-sys-color-surface, #121316);
+      }
+      #app-loader.is-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .loader-brand {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--md-font-body, Inter, Roboto, system-ui, -apple-system, "Segoe UI", sans-serif);
+      }
+      .loader-brand__title {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 10px;
+        opacity: 0;
+        animation: loader-in 900ms cubic-bezier(0.2, 0.8, 0.2, 1) 200ms forwards;
+      }
+      .loader-brand__title span {
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        color: var(--md-sys-color-on-surface, #191B20);
+        line-height: 1.2;
+      }
+      [data-theme="dark"] .loader-brand__title span {
+        color: var(--md-sys-color-on-surface, #E5E7EB);
+      }
+      .loader-brand__sep {
+        font-size: 16px !important;
+        font-weight: 400 !important;
+        color: var(--md-sys-color-on-surface-variant, #6B707B) !important;
+        opacity: 0.7;
+      }
+      .loader-brand__tagline {
+        font-size: 10px;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--md-sys-color-on-surface-variant, #6B707B);
+        opacity: 0;
+        animation: loader-in 900ms cubic-bezier(0.2, 0.8, 0.2, 1) 500ms forwards;
+      }
+      .loader-spinner {
+        margin-top: 32px;
+        width: 22px;
+        height: 22px;
+        border: 2.5px solid var(--md-sys-color-outline-variant, rgba(25, 27, 32, 0.12));
+        border-top-color: var(--md-sys-color-primary, #20B99A);
+        border-radius: 50%;
+        animation: loader-spin 800ms linear infinite;
+      }
+      .loader-status {
+        margin-top: 14px;
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        color: var(--md-sys-color-on-surface-variant, #6B707B);
+        opacity: 0;
+        animation: loader-in 900ms cubic-bezier(0.2, 0.8, 0.2, 1) 800ms forwards;
+        min-height: 16px;
+      }
+      @keyframes loader-spin { to { transform: rotate(360deg); } }
+      @keyframes loader-in {
+        from { opacity: 0; transform: translateY(8px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .loader-brand__title,
+        .loader-brand__tagline,
+        .loader-status { animation: none; opacity: 1; }
+        .loader-spinner { animation-duration: 1600ms; }
+      }
+    </style>
+    <script>
+      /* Loader: online/offline + app:ready */
+      (function () {
+        var setStatus = function (text) {
+          var el = document.getElementById("app-loader-status");
+          if (el && el.textContent !== text) el.textContent = text;
+        };
+        window.addEventListener("offline", function () { setStatus("Нет соединения"); });
+        window.addEventListener("online", function () { setStatus("Загрузка…"); });
+        window.addEventListener("app:ready", function () {
+          var el = document.getElementById("app-loader");
+          if (!el) return;
+          el.classList.add("is-hidden");
+          window.setTimeout(function () { el.remove(); }, 600);
+        });
+        // Fallback: принудительно снять лоадер через 8 секунд.
+        window.setTimeout(function () {
+          var el = document.getElementById("app-loader");
+          if (el && !el.classList.contains("is-hidden")) {
+            el.classList.add("is-hidden");
+            window.setTimeout(function () { el.remove(); }, 600);
+          }
+        }, 8000);
+      })();
+    </script>
   </head>
   <body>
+        <div id="app-loader" role="status" aria-live="polite" aria-label="Загрузка приложения">
+      <div class="loader-brand">
+        <div class="loader-brand__title">
+          <span>МИЭТ-ТВ</span>
+          <span class="loader-brand__sep">·</span>
+          <span>InFocus</span>
+        </div>
+        <div class="loader-brand__tagline">MediaHub</div>
+        <div class="loader-spinner"></div>
+        <div id="app-loader-status" class="loader-status">Загрузка…</div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -74,9 +74,8 @@ export function ProfilePage({
 
   return (
     <div className="page">
-      <TopBar />
+      <TopBar title="Профиль" />
       <main className="page__content">
-        <h1 className="section-title">Профиль</h1>
 
         <div className="card">
           <h2 className="card__title">Тема</h2>
@@ -115,7 +114,7 @@ export function ProfilePage({
           </div>
         </div>
 
-        {state.kind === "loading" && <p className="empty__text">Загрузка…</p>}
+        {state.kind === "loading" && (<div className="empty"><span className="spinner" aria-hidden="true" /><p className="empty__text">Загрузка…</p></div>)}
 
         {state.kind === "error" && (
           <div className="card">
@@ -174,8 +173,15 @@ export function ProfilePage({
             <div className="card">
               <h2 className="card__title">Связь с разработчиком</h2>
               <p className="card__subtitle">
-                По вопросам работы приложения — обратитесь к администратору
-                студии.
+                По вопросам работы приложения —{" "}
+                <a
+                  className="link"
+                  href="https://t.me/gootrich"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  @gootrich
+                </a>
               </p>
             </div>
           </>

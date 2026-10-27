@@ -10,6 +10,7 @@ export function CategoryChips({ categories, selected, onSelect }: Props) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [overflowing, setOverflowing] = useState(false);
   const [atStart, setAtStart] = useState(true);
+  const [atEnd, setAtEnd] = useState(false);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -18,6 +19,7 @@ export function CategoryChips({ categories, selected, onSelect }: Props) {
     const check = () => {
       setOverflowing(el.scrollWidth > el.clientWidth + 1);
       setAtStart(el.scrollLeft <= 1);
+      setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 1);
     };
 
     check();
@@ -50,6 +52,7 @@ export function CategoryChips({ categories, selected, onSelect }: Props) {
       className="chips-row"
       data-overflowing={overflowing ? "true" : "false"}
       data-at-start={atStart ? "true" : "false"}
+      data-at-end={atEnd ? "true" : "false"}
     >
       <div className="chips-scroll" ref={scrollRef}>
         <div className="chips" role="tablist" aria-label="Категории">
@@ -82,7 +85,7 @@ export function CategoryChips({ categories, selected, onSelect }: Props) {
         </button>
       )}
 
-      {overflowing && (
+      {overflowing && !atEnd && (
         <button
           type="button"
           className="chips-arrow chips-arrow--right"

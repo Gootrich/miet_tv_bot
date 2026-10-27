@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Modal } from "./Modal";
 import { DateTimeRangePicker, type DTRange } from "./DateTimeRangePicker";
 import { QuantityStepper } from "./QuantityStepper";
@@ -25,6 +25,18 @@ export function BatchBookingModal({ open, items, onClose, onSuccess }: Props) {
     for (const { item, quantity } of items) m[item.modelId] = quantity;
     return m;
   });
+
+  // Сброс при закрытии: при следующем открытии пикер подставит «сейчас» и +1 час.
+  useEffect(() => {
+    if (open) {
+      const m: Record<number, number> = {};
+      for (const { item, quantity } of items) m[item.modelId] = quantity;
+      setQty(m);
+      return;
+    }
+    setDt({ start: null, end: null });
+    setComment("");
+  }, [open]);
 
   // Отсортированный список по названию (по алфавиту)
   const sortedItems = useMemo(
@@ -71,25 +83,13 @@ export function BatchBookingModal({ open, items, onClose, onSuccess }: Props) {
         </>
       }
     >
-      <DateTimeRangePicker
-        variant="modal"
-        value={dt}
-        onChange={(next) => setDt(next)}
-      />
-
-      {items.some(({ item }) => item.categoryCode === "studio") && (
-        <div className="studio-hint">
-          Студия: Пн–Сб 09:00–22:00, Вс — выходной (по согласованию)
-        </div>
-      )}
-
       <div className="batch-list">
         {sortedItems.map(({ item }) => (
           <div key={item.modelId} className="batch-list__row">
             <div className="batch-list__info">
               <div className="batch-list__title">{item.title}</div>
               <div className="batch-list__meta">
-                {item.category}{item.subtitle ? ` · ${item.subtitle}` : ""}
+                {item.category}
               </div>
             </div>
             <div className="batch-list__qty">
@@ -106,6 +106,18 @@ export function BatchBookingModal({ open, items, onClose, onSuccess }: Props) {
           </div>
         ))}
       </div>
+
+      <DateTimeRangePicker
+        variant="modal"
+        value={dt}
+        onChange={(next) => setDt(next)}
+      />
+
+      {items.some(({ item }) => item.categoryCode === "studio") && (
+        <div className="studio-hint">
+          Студия: Пн–Сб 09:00–22:00, Вс — выходной (по согласованию)
+        </div>
+      )}
 
       <label className="field">
         Комментарий:

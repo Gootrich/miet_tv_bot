@@ -3,6 +3,8 @@ import { createBooking, type CatalogItem } from "../api/catalog";
 import { DateTimeRangePicker, type DTRange } from "./DateTimeRangePicker";
 import { QuantityStepper } from "./QuantityStepper";
 import { EquipmentThumb } from "./EquipmentThumb";
+import { Modal } from "./Modal";
+import { useToast } from "./Toast";
 
 function formatFreeUntil(iso: string | null): string {
   if (!iso) return "";
@@ -51,29 +53,28 @@ export function EquipmentCard({
   selected?: boolean;
   onToggleSelect?: (item: CatalogItem) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const toast = useToast();
+  const [modalOpen, setModalOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [dtRange, setDtRange] = useState<DTRange>({ start: null, end: null });
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
-  const handleToggleOpen = () => {
-    if (open) {
-      setOpen(false);
-      return;
-    }
-    setOpen(true);
+  const handleOpenModal = () => {
+    setModalOpen(true);
     setDtRange(defaultRange());
     setQuantity(1);
     setComment("");
     setError(null);
-    setSuccess(null);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleClose = () => {
+    if (loading) return;
+    setModalOpen(false);
+  };
+
+  const handleSubmit = async () => {
     if (!dtRange.start || !dtRange.end) {
       setError("Укажите время начала и окончания");
       return;
@@ -88,8 +89,8 @@ export function EquipmentCard({
         planned_end: dtRange.end,
         comment: comment ? comment : null,
       });
-      setSuccess("Бронирование создано");
-      setOpen(false);
+      setModalOpen(false);
+      toast.success("Бронирование создано");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка создания брони");
     } finally {
@@ -100,100 +101,121 @@ export function EquipmentCard({
   const av = availabilityLabel(item);
 
   return (
-    <article className={`card card--row${open ? " card--open" : ""}`}>
-      <button
-        type="button"
-        className="row-head"
-        onClick={handleToggleOpen}
-        aria-expanded={open}
-      >
-        <EquipmentThumb categoryCode={item.categoryCode} title={item.title} />
-        <div className="row-head__main">
-          <span className="row-head__title">{item.title}</span>
-          <span className="row-head__meta">
-            {showCategory ? `${item.category} · ` : ""}
-            {item.subtitle || "—"}
-          </span>
-          <span className={`row-head__status row-head__status--${av.kind}`}>
-            <span className={`status-dot status-dot--${
-              av.kind === "ok" ? "success" : av.kind === "busy" ? "warning" : "error"
-            }`} />
-            {av.text}
-          </span>
-        </div>
-        {onToggleSelect && (
-          <span
-            role="button"
-            tabIndex={0}
-            className={`row-head__select${selected ? " is-selected" : ""}`}
-            aria-label={selected ? "Убрать из выбора" : "Добавить в выбор"}
-            aria-pressed={selected}
-            title={selected ? "Убрать из выбора" : "Добавить в выбор"}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleSelect(item);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
+    <>
+      <article className="card card--row">
+        <button
+          type="button"
+          className="row-head"
+          onClick={handleOpenModal}
+          aria-haspopup="dialog"
+        >
+          <EquipmentThumb categoryCode={item.categoryCode} title={item.title} />
+          <div className="row-head__main">
+            <span className="row-head__title">{item.title}</span>
+            <span className="row-head__meta">
+              {showCategory ? `${item.category} · ` : ""}
+              {item.subtitle || "—"}
+            </span>
+            <span className={`row-head__status row-head__status--${av.kind}`}>
+              <span className={`status-dot status-dot--${
+                av.kind === "ok" ? "success" : av.kind === "busy" ? "warning" : "error"
+              }`} />
+              {av.text}
+            </span>
+          </div>
+          {onToggleSelect && (
+            <span
+              role="button"
+              tabIndex={0}
+              className={`row-head__select${selected ? " is-selected" : ""}`}
+              aria-label={selected ? "Убрать из выбора" : "Добавить в выбор"}
+              aria-pressed={selected}
+              title={selected ? "Убрать из выбора" : "Добавить в выбор"}
+              onClick={(e) => {
                 e.stopPropagation();
                 onToggleSelect(item);
-              }
-            }}
-          >
-            {selected ? "✓" : "+"}
-          </span>
-        )}
-        <span className="row-head__chevron" aria-hidden="true">›</span>
-      </button>
-
-      {success && <div className="status-chip status-chip--success">{success}</div>}
-
-      {open && (
-        <form className="booking-form" onSubmit={handleSubmit}>
-          {error && <div className="status-chip status-chip--error">{error}</div>}
-
-          <DateTimeRangePicker
-            variant="inline"
-            value={dtRange}
-            onChange={(next: DTRange) => setDtRange(next)}
-          />
-
-          {item.categoryCode === "studio" && (
-            <div className="studio-hint">
-              Студия: Пн–Сб 09:00–22:00, Вс — выходной (по согласованию)
-            </div>
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onToggleSelect(item);
+                }
+              }}
+            >
+              {selected ? "✓" : "+"}
+            </span>
           )}
+          <span className="row-head__chevron" aria-hidden="true">›</span>
+        </button>
+      </article>
 
-          <div className="field">
-            Количество:
-            <QuantityStepper
-              value={quantity}
-              min={1}
-              max={Math.max(1, item.totalQuantity)}
-              onChange={setQuantity}
-            />
-          </div>
-
-          <label className="field">
-            Комментарий:
-            <input
-              type="text"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Необязательно"
-            />
-          </label>
-
-          <div className="row-actions row-actions--split">
-            <button type="button" className="card__cta card__cta--secondary"
-              onClick={() => setOpen(false)}>Отмена</button>
-            <button type="submit" className="card__cta" disabled={loading}>
-              {loading ? "Отправка…" : "Подтвердить"}
+      <Modal
+        open={modalOpen}
+        title={item.title}
+        onClose={handleClose}
+        width={520}
+        footer={
+          <>
+            <button
+              type="button"
+              className="card__cta card__cta--secondary"
+              disabled={loading}
+              onClick={handleClose}
+            >
+              Отмена
             </button>
+            <button
+              type="button"
+              className="card__cta"
+              disabled={loading}
+              onClick={handleSubmit}
+            >
+              {loading ? "Отправка…" : "Забронировать"}
+            </button>
+          </>
+        }
+      >
+        {error && <div className="status-chip status-chip--error">{error}</div>}
+
+        <div className="qty-row">
+          <div className="qty-row__text">
+            <span className="qty-row__label">Количество</span>
+            <span className="qty-row__hint">
+              Всего: {Math.max(1, item.totalQuantity)}
+            </span>
           </div>
-        </form>
-      )}
-    </article>
+          <QuantityStepper
+            value={quantity}
+            min={1}
+            max={Math.max(1, item.totalQuantity)}
+            onChange={setQuantity}
+            ariaLabel="Количество"
+          />
+        </div>
+
+        <DateTimeRangePicker
+          variant="modal"
+          value={dtRange}
+          onChange={(next: DTRange) => setDtRange(next)}
+        />
+
+        {item.categoryCode === "studio" && (
+          <div className="studio-hint">
+            Студия: Пн–Сб 09:00–22:00, Вс — выходной (по согласованию)
+          </div>
+        )}
+
+        <label className="field">
+          Комментарий:
+          <input
+            type="text"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Необязательно"
+          />
+        </label>
+      </Modal>
+    </>
   );
 }

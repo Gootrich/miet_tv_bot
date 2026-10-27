@@ -1,4 +1,4 @@
-import { createContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 
 export type ThemeChoice = "auto" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
@@ -53,8 +53,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const resolved: ResolvedTheme = choice === "auto" ? system : choice;
 
-  useEffect(() => {
+  // useLayoutEffect: применяем тему синхронно до paint — без мигания.
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = resolved;
+    const meta = document.querySelector('meta[name="theme-color"]:not([media])')
+      ?? document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      meta.setAttribute("content", resolved === "dark" ? "#121316" : "#20B99A");
+    }
   }, [resolved]);
 
   const setChoice = (next: ThemeChoice) => {
