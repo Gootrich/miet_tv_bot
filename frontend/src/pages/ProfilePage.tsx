@@ -46,6 +46,13 @@ function roleLabel(code: string): string {
   return ROLE_LABELS[code] ?? code;
 }
 
+// active — норма, отдельно не показываем
+const STATUS_LABELS: Record<string, string> = {
+  pending: "Ожидает подтверждения",
+  blocked: "Заблокирован",
+  rejected: "Заявка отклонена",
+};
+
 type State =
   | { kind: "loading" }
   | { kind: "me"; me: UserOut }
@@ -141,22 +148,31 @@ export function ProfilePage({
                 </div>
               )}
               <div className="profile-head__meta">
-                TG {state.me.telegram_id} · {state.me.status}
+                TG {state.me.telegram_id}
+                {STATUS_LABELS[state.me.status] ? ` · ${STATUS_LABELS[state.me.status]}` : ""}
               </div>
             </div>
           </section>
         )}
 
-        {themeSwitch}
-
         {state.kind === "loading" && (
-          <div className="empty"><span className="spinner" aria-hidden="true" /><p className="empty__text">Загрузка…</p></div>
+          <div className="empty profile-loading" role="status"><span className="spinner" aria-hidden="true" /><p className="empty__text">Загрузка…</p></div>
         )}
 
         {state.kind === "error" && (
           <div className="card">
             <h2 className="card__title">Ошибка</h2>
             <p className="card__subtitle">{state.message}</p>
+            <button
+              type="button"
+              className="card__cta card__cta--secondary"
+              onClick={() => {
+                setState({ kind: "loading" });
+                setRetryTick((n) => n + 1);
+              }}
+            >
+              Повторить
+            </button>
           </div>
         )}
 
@@ -176,6 +192,11 @@ export function ProfilePage({
             }}
           />
         )}
+
+        <section className="profile-section">
+          <h2 className="section-title">Оформление</h2>
+          {themeSwitch}
+        </section>
 
         {state.kind === "me" && isAdminScope && <AdminSection me={state.me} />}
 

@@ -13,6 +13,7 @@ export function AdminSection({ me }: { me: UserOut }) {
     me.role_codes.includes("infocus_head");
   const canManageUsers = me.role_codes.includes("admin");
   const canManageEquipment = me.role_codes.includes("admin");
+  const tabCount = [canManageRequests, canManageUsers, canManageEquipment].filter(Boolean).length;
 
   const initialTab: Tab = canManageRequests
     ? "requests"
@@ -26,7 +27,11 @@ export function AdminSection({ me }: { me: UserOut }) {
     <section className="admin-section">
       <h2 className="section-title">Администрирование</h2>
 
-      <div className="segmented" role="tablist">
+      <div
+        className="segmented"
+        role="tablist"
+        style={tabCount < 2 ? { display: "none" } : undefined}
+      >
         {canManageRequests && (
           <button
             type="button"

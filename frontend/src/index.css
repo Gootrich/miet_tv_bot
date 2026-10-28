@@ -3074,3 +3074,26 @@ option:checked {
   color: var(--md-sys-color-on-surface-variant);
   opacity: 0.8;
 }
+
+/* Админка: опасные действия внутри карточек — контур вместо заливки */
+.admin-section .card .card__cta--danger {
+  background: transparent;
+  color: var(--md-sys-color-error);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-error) 45%, transparent);
+}
+.admin-section .card .card__cta--danger:hover {
+  background: color-mix(in srgb, var(--md-sys-color-error) 10%, transparent);
+}
+
+/* Профиль: выравнивание с общей системой радиусов, группа настроек, место под загрузку */
+.profile-head { border-radius: var(--md-shape-corner-lg); }
+.profile-section { display: flex; flex-direction: column; gap: var(--md-space-2); }
+.profile-loading { min-height: 98px; justify-content: center; }
+
+/* Профиль: единые заголовки секций (отступ задаёт gap родителя, иерархия ниже имени) */
+.profile-section { gap: var(--md-space-3); }
+.profile-section .section-title,
+.admin-section > .section-title {
+  margin: 0;
+  font: var(--md-type-title-medium);
+}
