@@ -5,6 +5,15 @@ import "./index.css";
 import App from "./App";
 import { ThemeProvider } from "./theme/ThemeProvider";
 
+type TelegramWebApp = {
+  ready?: () => void;
+  expand?: () => void;
+};
+
+const telegramWebApp = (
+  window as unknown as { Telegram?: { WebApp?: TelegramWebApp } }
+).Telegram?.WebApp;
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider>
@@ -12,3 +21,8 @@ createRoot(document.getElementById("root")!).render(
     </ThemeProvider>
   </StrictMode>,
 );
+
+if (telegramWebApp) {
+  telegramWebApp.expand?.();
+  telegramWebApp.ready?.();
+}
