@@ -3,6 +3,7 @@ import { createBooking, type CatalogItem } from "../api/catalog";
 import { DateTimeRangePicker, type DTRange } from "./DateTimeRangePicker";
 import { QuantityStepper } from "./QuantityStepper";
 import { EquipmentThumb } from "./EquipmentThumb";
+import { IconCheck, IconPlus } from "./Icons";
 import { Modal } from "./Modal";
 import { useToast } from "./Toast";
 
@@ -99,6 +100,9 @@ export function EquipmentCard({
   };
 
   const av = availabilityLabel(item);
+  const meta = [showCategory ? item.category : null, item.subtitle]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <>
@@ -112,10 +116,7 @@ export function EquipmentCard({
           <EquipmentThumb src={item.imageUrl} categoryCode={item.categoryCode} title={item.title} />
           <div className="row-head__main">
             <span className="row-head__title">{item.title}</span>
-            <span className="row-head__meta">
-              {showCategory ? `${item.category} · ` : ""}
-              {item.subtitle || "—"}
-            </span>
+            {meta && <span className="row-head__meta">{meta}</span>}
             <span className={`row-head__status row-head__status--${av.kind}`}>
               <span className={`status-dot status-dot--${
                 av.kind === "ok" ? "success" : av.kind === "busy" ? "warning" : "error"
@@ -143,7 +144,7 @@ export function EquipmentCard({
                 }
               }}
             >
-              {selected ? "✓" : "+"}
+              {selected ? <IconCheck size={18} /> : <IconPlus size={18} />}
             </span>
           )}
           <span className="row-head__chevron" aria-hidden="true">›</span>

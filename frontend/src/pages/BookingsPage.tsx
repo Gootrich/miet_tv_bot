@@ -637,7 +637,6 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
                   {g.primary.user_name && (
                     <p className="card__subtitle">
                       {mine ? "Вы" : g.primary.user_name}
-                      {mine && ` (id ${g.primary.user_id})`}
                     </p>
                   )}
                   <div className="booking-time">{fmtShort(g.primary.planned_start)} <span className="booking-time__sep">→</span> {fmtShort(g.primary.planned_end)}</div>
@@ -684,16 +683,22 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
                       const canReturn = bMine && b.actual_checkout != null && b.actual_return == null;
                       return (
                         <div key={b.id} className="booking-positions__row">
-                          <div className="booking-positions__head">
-                            <span className="booking-positions__name">
-                              {b.model_name ?? `Модель #${b.model_id}`}
-                              {b.item_inventory_number ? ` · инв. №${b.item_inventory_number}` : ` · ×${b.quantity}`}
-                            </span>
-                            <span className={`status-chip ${bs.cls}`}>
-                              <span className={`status-dot ${bs.dot}`} />
-                              {bs.label}
-                            </span>
-                          </div>
+                          {allBookings.length > 1 ? (
+                            <div className="booking-positions__head">
+                              <span className="booking-positions__name">
+                                {b.model_name ?? `Модель #${b.model_id}`}
+                                {b.item_inventory_number ? ` · инв. №${b.item_inventory_number}` : ` · ×${b.quantity}`}
+                              </span>
+                              <span className={`status-chip ${bs.cls}`}>
+                                <span className={`status-dot ${bs.dot}`} />
+                                {bs.label}
+                              </span>
+                            </div>
+                          ) : (
+                            <p className="card__subtitle">
+                              {b.item_inventory_number ? `Инв. №${b.item_inventory_number}` : `Количество: ${b.quantity}`}
+                            </p>
+                          )}
                           {b.actual_checkout && (
                             <p className="card__subtitle">
                               Выдано: {fmt(b.actual_checkout)}

@@ -756,7 +756,7 @@ textarea {
   color: inherit;
   text-align: left;
   cursor: pointer;
-  border-radius: 16px;
+  border-radius: var(--md-shape-corner-lg);
   transition: background-color 140ms ease;
 }
 
@@ -825,17 +825,6 @@ textarea {
   object-fit: cover;
   display: block;
 }
-
-.thumb--loading {
-  background: linear-gradient(90deg,
-    var(--md-sys-color-surface-container-high) 0%,
-    var(--md-sys-color-surface-variant) 50%,
-    var(--md-sys-color-surface-container-high) 100%);
-  background-size: 200% 100%;
-  animation: thumb-shimmer 1.2s linear infinite;
-}
-@keyframes thumb-shimmer { to { background-position: -200% 0; } }
-@media (prefers-reduced-motion: reduce) { .thumb--loading { animation: none; } }
 
 .thumb--loading {
   background: linear-gradient(90deg,
@@ -2697,6 +2686,9 @@ option:checked {
   white-space: normal;
   text-overflow: clip;
 }
+.list--catalog .row-head__meta {
+  -webkit-line-clamp: 1;
+}
 
 .list--catalog .row-head__chevron {
   display: none;
@@ -2706,8 +2698,8 @@ option:checked {
   position: absolute;
   top: var(--md-space-2);
   right: var(--md-space-2);
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
 }
 
 
@@ -2912,4 +2904,48 @@ option:checked {
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+/* Брони: иерархия карточки (название → статус → время → действия) */
+.bookings-page .card__heading {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: var(--md-space-3);
+}
+.bookings-page .card__title {
+  flex: 1 1 auto;
+  width: auto;
+  text-align: left;
+}
+.bookings-page .status-chip {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.bookings-page .booking-time {
+  justify-content: flex-start;
+  width: auto;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+.bookings-page .booking-positions__name {
+  color: var(--md-sys-color-on-surface);
+}
+
+/* Вторичные и опасные действия: контур вместо заливки (только внутри карточек) */
+.bookings-page .card .card__cta--secondary {
+  background: transparent;
+  color: var(--md-sys-color-primary);
+  border: 1px solid var(--md-sys-color-outline-variant);
+}
+.bookings-page .card .card__cta--secondary:hover {
+  background: color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent);
+}
+.bookings-page .card .card__cta--danger {
+  background: transparent;
+  color: var(--md-sys-color-error);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-error) 45%, transparent);
+}
+.bookings-page .card .card__cta--danger:hover {
+  background: color-mix(in srgb, var(--md-sys-color-error) 10%, transparent);
 }
