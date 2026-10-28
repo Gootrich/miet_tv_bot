@@ -1,11 +1,15 @@
+import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, text
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.user import Role, User, UserRole
+from app.models.booking import Booking
+from app.models.booking_history import BookingHistory
+from app.models.equipment import EquipmentItem, EquipmentModel
+from app.models.user import RegistrationRequest, Role, User, UserRole
 from sqlalchemy.orm import selectinload as _selectinload
 from sqlalchemy.orm import selectinload
 
@@ -221,3 +225,145 @@ async def find_user_by_telegram_id(session: AsyncSession, telegram_id: int) -> U
         .where(User.telegram_id == telegram_id)
     )
     return result.scalar_one_or_none()
+
+
+# --- Полное удаление пользователя ---
+
+logger = logging.getLogger(__name__)
+
+
+class UserNotFoundError(ValueError):
+    """Пользователь не найден."""
+
+
+class UserDeletionBlocked(Exception):
+    """Удаление запрещено правилами безопасности."""
+
+
+class UserHasUnreturnedEquipment(Exception):
+    """За пользователем числится выданная и не возвращённая техника."""
+
+
+async def _count_other_active_admins(session: AsyncSession, exclude_user_id: int) -> int:
+    result = await session.execute(
+        select(func.count(func.distinct(User.id)))
+        .select_from(User)
+        .join(UserRole, UserRole.user_id == User.id)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(
+            Role.code == "admin",
+            User.status == "active",
+            User.id != exclude_user_id,
+        )
+    )
+    return int(result.scalar_one())
+
+
+async def _unreturned_labels(session: AsyncSession, user_id: int) -> list[str]:
+    stmt = (
+        select(Booking.quantity, EquipmentModel.name, EquipmentItem.inventory_number)
+        .select_from(Booking)
+        .outerjoin(EquipmentItem, EquipmentItem.id == Booking.item_id)
+        .outerjoin(
+            EquipmentModel,
+            EquipmentModel.id == func.coalesce(Booking.model_id, EquipmentItem.model_id),
+        )
+        .where(
+            Booking.user_id == user_id,
+            Booking.actual_checkout.is_not(None),
+            Booking.actual_return.is_(None),
+        )
+        .order_by(Booking.id)
+    )
+    rows = (await session.execute(stmt)).all()
+    labels: list[str] = []
+    for qty, name, inv in rows:
+        label = name or "Позиция"
+        label += f" (инв. №{inv})" if inv else f" ×{qty}"
+        labels.append(label)
+    return labels
+
+
+async def delete_user_completely(
+    session: AsyncSession,
+    user_id: int,
+    *,
+    actor_id: int,
+    force: bool = False,
+) -> dict[str, int]:
+    """Полностью удаляет пользователя. Коммит делает вызывающий код.
+
+    Удаляются: сам пользователь, его роли и заявки, все его брони и история
+    этих броней. События, которые он совершил над чужими бронями,
+    остаются с пустым автором (actor_user_id = NULL).
+    Всё выполняется в одной транзакции вызывающего кода.
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        raise UserNotFoundError("Пользователь не найден.")
+
+    if (
+        user.has_role("admin")
+        and user.status == "active"
+        and await _count_other_active_admins(session, user_id) == 0
+    ):
+        raise UserDeletionBlocked("Нельзя удалить единственного активного администратора.")
+
+    labels = await _unreturned_labels(session, user_id)
+    if labels and not force:
+        raise UserHasUnreturnedEquipment("; ".join(labels))
+
+    no_sync = {"synchronize_session": False}
+
+    own_bookings = select(Booking.id).where(Booking.user_id == user_id)
+    hist_deleted = await session.execute(
+        delete(BookingHistory)
+        .where(BookingHistory.booking_id.in_(own_bookings))
+        .execution_options(**no_sync)
+    )
+    hist_anon = await session.execute(
+        update(BookingHistory)
+        .where(BookingHistory.actor_user_id == user_id)
+        .values(actor_user_id=None)
+        .execution_options(**no_sync)
+    )
+    bookings_deleted = await session.execute(
+        delete(Booking).where(Booking.user_id == user_id).execution_options(**no_sync)
+    )
+    await session.execute(
+        update(User)
+        .where(User.approved_by_id == user_id)
+        .values(approved_by_id=None)
+        .execution_options(**no_sync)
+    )
+    await session.execute(
+        update(RegistrationRequest)
+        .where(RegistrationRequest.decided_by_id == user_id)
+        .values(decided_by_id=None)
+        .execution_options(**no_sync)
+    )
+    await session.execute(
+        delete(RegistrationRequest)
+        .where(RegistrationRequest.user_id == user_id)
+        .execution_options(**no_sync)
+    )
+    await session.execute(
+        delete(UserRole).where(UserRole.user_id == user_id).execution_options(**no_sync)
+    )
+    await session.execute(
+        delete(User).where(User.id == user_id).execution_options(**no_sync)
+    )
+    await session.flush()
+
+    result = {
+        "deleted_user_id": user_id,
+        "bookings": int(getattr(bookings_deleted, "rowcount", 0) or 0),
+        "history_deleted": int(getattr(hist_deleted, "rowcount", 0) or 0),
+        "history_anonymized": int(getattr(hist_anon, "rowcount", 0) or 0),
+    }
+    logger.warning(
+        "Пользователь id=%s удалён админом id=%s (брони=%s, история удалена=%s, обезличена=%s, force=%s)",
+        user_id, actor_id, result["bookings"], result["history_deleted"],
+        result["history_anonymized"], force,
+    )
+    return result

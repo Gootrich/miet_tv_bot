@@ -517,6 +517,30 @@ async def admin_unblock(
     return UserOut.from_orm_user(user)
 
 
+@router.delete("/admin/users/{user_id}")
+async def admin_delete_user(
+    user_id: int,
+    force: bool = False,
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Полное удаление пользователя вместе с его бронями и историей."""
+    if user_id == admin.id:
+        raise HTTPException(status_code=400, detail="Нельзя удалить себя.")
+    try:
+        result = await users_service.delete_user_completely(
+            session, user_id, actor_id=admin.id, force=force,
+        )
+    except users_service.UserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except users_service.UserDeletionBlocked as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except users_service.UserHasUnreturnedEquipment as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    await session.commit()
+    return result
+
+
 # --- Admin: registration requests ---
 
 def _allowed_registration_clubs(user: User) -> set[str]:

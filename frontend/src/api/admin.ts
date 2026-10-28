@@ -267,3 +267,21 @@ export function updateItem(
 export function deleteItem(id: number): Promise<{ status: string; id: number }> {
   return apiFetch(`/admin/equipment/items/${id}`, { method: "DELETE" });
 }
+
+// ---------------------------------------------------------------------------
+// Полное удаление пользователя (брони и история удаляются вместе с ним)
+// ---------------------------------------------------------------------------
+
+export interface DeleteUserResult {
+  deleted_user_id: number;
+  bookings: number;
+  history_deleted: number;
+  history_anonymized: number;
+}
+
+export function deleteUser(id: number, force = false): Promise<DeleteUserResult> {
+  return apiFetch<DeleteUserResult>(
+    `/admin/users/${id}${force ? "?force=true" : ""}`,
+    { method: "DELETE" },
+  );
+}

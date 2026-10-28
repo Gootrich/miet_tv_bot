@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   assignRole,
   blockUser,
+  deleteUser,
   fetchRoles,
   fetchUsers,
   removeRole,
@@ -30,6 +31,12 @@ function roleLabel(code: string): string {
 
 type AssignState = { user: UserOut; roleCode: string } | null;
 type BlockState = { user: UserOut; hours: string; reason: string } | null;
+type DeleteState = {
+  user: UserOut;
+  typed: string;
+  conflict: string | null;
+  ack: boolean;
+} | null;
 type ConfirmState =
   | { kind: "unblock"; user: UserOut }
   | { kind: "remove"; user: UserOut; roleCode: string }
@@ -44,6 +51,7 @@ export function UsersTab({ me }: { me: UserOut }) {
   const [assign, setAssign] = useState<AssignState>(null);
   const [block, setBlock] = useState<BlockState>(null);
   const [confirm, setConfirm] = useState<ConfirmState>(null);
+  const [del, setDel] = useState<DeleteState>(null);
 
   const load = async () => {
     try {
@@ -97,6 +105,25 @@ export function UsersTab({ me }: { me: UserOut }) {
     }
   };
 
+  const submitDelete = async () => {
+    if (!del) return;
+    setBusy(del.user.id);
+    try {
+      await deleteUser(del.user.id, del.conflict !== null);
+      toast.success("Пользователь удалён");
+      setDel(null);
+      await load();
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        setDel({ ...del, conflict: e.message, ack: false });
+      } else {
+        toast.error(e instanceof ApiError ? e.message : "Ошибка удаления");
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const doConfirm = async () => {
     if (!confirm) return;
     setBusy(confirm.user.id);
@@ -114,6 +141,16 @@ export function UsersTab({ me }: { me: UserOut }) {
       setBusy(null);
     }
   };
+
+  const delExpected = del
+    ? del.user.username
+      ? `@${del.user.username}`
+      : del.user.full_name
+    : "";
+  const delReady =
+    del !== null &&
+    del.typed.trim().toLowerCase() === delExpected.toLowerCase() &&
+    (del.conflict === null || del.ack);
 
   return (
     <div className="list">
@@ -202,6 +239,18 @@ export function UsersTab({ me }: { me: UserOut }) {
                   onClick={() => setConfirm({ kind: "unblock", user: u })}
                 >
                   Разблокировать
+                </button>
+              )}
+              {!isSelf && (
+                <button
+                  type="button"
+                  className="card__cta card__cta--danger"
+                  disabled={busy === u.id}
+                  onClick={() =>
+                    setDel({ user: u, typed: "", conflict: null, ack: false })
+                  }
+                >
+                  Удалить
                 </button>
               )}
             </div>
@@ -301,6 +350,69 @@ export function UsersTab({ me }: { me: UserOut }) {
             }
           />
         </label>
+      </Modal>
+
+      {/* --- Delete user --- */}
+      <Modal
+        open={del !== null}
+        title={`Удалить пользователя — ${del?.user.full_name ?? ""}`}
+        onClose={() => {
+          if (busy === null) setDel(null);
+        }}
+        footer={
+          <>
+            <button
+              type="button"
+              className="card__cta card__cta--secondary"
+              disabled={busy !== null}
+              onClick={() => setDel(null)}
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              className="card__cta card__cta--danger"
+              disabled={busy !== null || !delReady}
+              onClick={submitDelete}
+            >
+              {del?.conflict ? "Удалить всё равно" : "Удалить безвозвратно"}
+            </button>
+          </>
+        }
+      >
+        {del && (
+          <>
+            <p className="modal__text">
+              Будут безвозвратно удалены: пользователь, его роли и заявки, все его брони
+              и их история. Записи, которые он оставил в чужих бронях, станут анонимными.
+              Если он снова откроет приложение, появится новая заявка. Отменить нельзя.
+            </p>
+            {del.conflict && (
+              <div className="status-chip status-chip--error">
+                Не возвращена техника: {del.conflict}
+              </div>
+            )}
+            {del.conflict && (
+              <label className="booking-filter">
+                <input
+                  type="checkbox"
+                  checked={del.ack}
+                  onChange={(e) => setDel({ ...del, ack: e.target.checked })}
+                />
+                Понимаю: эти позиции перестанут числиться за пользователем
+              </label>
+            )}
+            <label className="field">
+              <span className="field__label">Для подтверждения введите {delExpected}</span>
+              <input
+                type="text"
+                autoComplete="off"
+                value={del.typed}
+                onChange={(e) => setDel({ ...del, typed: e.target.value })}
+              />
+            </label>
+          </>
+        )}
       </Modal>
 
       {/* --- Confirm unblock / remove role --- */}
