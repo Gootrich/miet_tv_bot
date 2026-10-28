@@ -8,6 +8,7 @@ import { ToastProvider } from "./components/Toast";
 import { fetchCatalog } from "./api/catalog";
 import { fetchBookings } from "./api/bookings";
 import { fetchMe } from "./api/admin";
+import { load } from "./api/cache";
 type Page = "catalog" | "occupancy" | "bookings" | "profile";
 const PAGE_STORAGE_KEY = "miet.page";
 const ALLOWED: Page[] = ["catalog", "occupancy", "bookings", "profile"];
@@ -54,11 +55,11 @@ export default function App() {
       finish();
     }, 1200);
     Promise.all([
-      fetchMe()
+      load("me", fetchMe)
         .then(() => { authDone = true; setStatus("Загрузка каталога…"); })
         .catch(() => { authDone = true; setStatus("Загрузка каталога…"); })
         .then(() => finish()),
-      fetchCatalog()
+      load("catalog", fetchCatalog)
         .then(() => { catalogDone = true; setStatus("Загрузка броней…"); })
         .catch(() => { catalogDone = true; setStatus("Загрузка броней…"); })
         .then(() => finish()),

@@ -7,7 +7,7 @@ ORM-моделями. Внутренние поля (например, telegram_
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 from datetime import datetime
 
 
@@ -46,6 +46,14 @@ class EquipmentModelOut(BaseModel):
     access_policy: str = Field(
         description="all | photographer | videographer",
     )
+    image_filename: str | None = Field(default=None, exclude=True)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def image_url(self) -> str | None:
+        if not self.image_filename:
+            return None
+        return f"/api/media/models/{self.image_filename}"
 
 
 class EquipmentModelDetailPublicOut(EquipmentModelOut):
@@ -329,6 +337,14 @@ class ModelAdminOut(BaseModel):
     access_policy: str
     tracking_type: str
     total_quantity: int
+    image_filename: str | None = Field(default=None, exclude=True)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def image_url(self) -> str | None:
+        if not self.image_filename:
+            return None
+        return f"/api/media/models/{self.image_filename}"
 
 
 class ModelCreateRequest(BaseModel):

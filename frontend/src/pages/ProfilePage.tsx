@@ -1,3 +1,4 @@
+import { load } from "../api/cache";
 import { useEffect, useState } from "react";
 import { BottomNav } from "../components/BottomNav";
 import { TopBar } from "../components/TopBar";
@@ -37,9 +38,9 @@ export function ProfilePage({
 
   useEffect(() => {
     let cancelled = false;
-    async function load() {
+    async function loadMe() {
       try {
-        const me = await fetchMe();
+        const me = await load("me", fetchMe);
         if (cancelled) return;
         setState({ kind: "me", me });
       } catch (e) {
@@ -58,7 +59,7 @@ export function ProfilePage({
         }
       }
     }
-    void load();
+    void loadMe();
     return () => {
       cancelled = true;
     };

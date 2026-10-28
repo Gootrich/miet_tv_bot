@@ -24,6 +24,7 @@ export interface EquipmentModelOut {
   available_now: number;
   free_until: string | null;
   next_busy_at: string | null;
+  image_url?: string | null;
 }
 
 export interface EquipmentModelDetailPublicOut extends EquipmentModelOut {
@@ -61,6 +62,7 @@ export interface CatalogItem {
   availableNow: number;
   freeUntil: string | null;
   nextBusyAt: string | null;
+  imageUrl?: string | null;
 }
 
 import { apiFetch, ApiError } from "./client";
@@ -113,6 +115,7 @@ export function toCatalogItems(
         availableNow: model.available_now,
         freeUntil: model.free_until,
         nextBusyAt: model.next_busy_at,
+        imageUrl: model.image_url ?? null,
       });
     }
   }

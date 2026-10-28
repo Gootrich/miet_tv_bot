@@ -168,6 +168,7 @@ export interface ModelAdmin {
   access_policy: AccessPolicy;
   tracking_type: TrackingType;
   total_quantity: number;
+  image_url?: string | null;
 }
 
 export function fetchAdminModels(params: { category_id?: number } = {}): Promise<ModelAdmin[]> {
@@ -200,6 +201,18 @@ export function updateModel(
     method: "PATCH",
     body: JSON.stringify(payload),
   });
+}
+
+export function uploadModelImage(id: number, file: File): Promise<{ id: number; image_url: string }> {
+  return apiFetch(`/admin/equipment/models/${id}/image`, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+  });
+}
+
+export function deleteModelImage(id: number): Promise<{ id: number; image_url: null }> {
+  return apiFetch(`/admin/equipment/models/${id}/image`, { method: "DELETE" });
 }
 
 export function deleteModel(id: number): Promise<{ status: string; id: number }> {

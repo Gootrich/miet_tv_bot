@@ -49,6 +49,11 @@ def verify_telegram_init_data(
             )
 
         auth_date_str = parsed_data.get("auth_date")
+        if not auth_date_str:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="В initData отсутствует auth_date.",
+            )
         if auth_date_str:
             try:
                 auth_date = int(auth_date_str)
@@ -76,5 +81,5 @@ def verify_telegram_init_data(
     except Exception as exc:  # noqa: BLE001 — конвертируем в 401
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Ошибка проверки initData: {exc}",
+            detail="Ошибка проверки initData.",
         ) from exc

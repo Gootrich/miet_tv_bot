@@ -83,6 +83,11 @@ class EquipmentModel(Base):
         nullable=True,
     )
 
+    image_filename: Mapped[str | None] = mapped_column(
+        String(80),
+        nullable=True,
+    )
+
     access_policy: Mapped[str] = mapped_column(
         String(20),
         nullable=False,

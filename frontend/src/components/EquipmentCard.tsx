@@ -109,7 +109,7 @@ export function EquipmentCard({
           onClick={handleOpenModal}
           aria-haspopup="dialog"
         >
-          <EquipmentThumb categoryCode={item.categoryCode} title={item.title} />
+          <EquipmentThumb src={item.imageUrl} categoryCode={item.categoryCode} title={item.title} />
           <div className="row-head__main">
             <span className="row-head__title">{item.title}</span>
             <span className="row-head__meta">

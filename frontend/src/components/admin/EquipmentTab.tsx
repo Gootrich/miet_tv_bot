@@ -6,6 +6,8 @@ import {
   deleteCategory,
   deleteItem,
   deleteModel,
+  deleteModelImage,
+  uploadModelImage,
   fetchAdminCategories,
   fetchAdminItems,
   fetchAdminModels,
@@ -533,6 +535,13 @@ function ModelsSection({
         draft={draft}
         categories={categories}
         busy={busy}
+        imageUrl={
+          draft?.id != null
+            ? (models?.find((m) => m.id === draft.id)?.image_url ?? null)
+            : null
+        }
+        onImageChanged={reload}
+        setError={setError}
         onClose={() => setDraft(null)}
         onSubmit={submit}
       />
@@ -556,6 +565,8 @@ function ModelModal2({
   draft,
   categories,
   busy,
+  imageUrl,
+  onImageChanged,
   onClose,
   onSubmit,
 }: {
@@ -563,9 +574,50 @@ function ModelModal2({
   draft: ModelDraft | null;
   categories: CategoryAdmin[];
   busy: boolean;
+  imageUrl: string | null;
+  onImageChanged: () => Promise<void>;
+  setError: (s: string | null) => void;
   onClose: () => void;
   onSubmit: (d: ModelDraft) => void;
 }) {
+  const [imgBusy, setImgBusy] = useState(false);
+  const [imgError, setImgError] = useState<string | null>(null);
+
+  const pickFile = async (file: File | undefined, id: number) => {
+    if (!file) return;
+    setImgError(null);
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setImgError("Допустимые форматы: JPEG, PNG, WebP.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setImgError("Файл больше 2 МБ.");
+      return;
+    }
+    setImgBusy(true);
+    try {
+      await uploadModelImage(id, file);
+      await onImageChanged();
+    } catch (e) {
+      setImgError(e instanceof ApiError ? e.message : "Ошибка загрузки");
+    } finally {
+      setImgBusy(false);
+    }
+  };
+
+  const removeImage = async (id: number) => {
+    setImgError(null);
+    setImgBusy(true);
+    try {
+      await deleteModelImage(id);
+      await onImageChanged();
+    } catch (e) {
+      setImgError(e instanceof ApiError ? e.message : "Ошибка удаления");
+    } finally {
+      setImgBusy(false);
+    }
+  };
+
   const [local, setLocal] = useState<ModelDraft | null>(draft);
   useEffect(() => setLocal(draft), [draft]);
   const isEdit = local?.id !== null && local !== null;
@@ -597,6 +649,58 @@ function ModelModal2({
         </>
       }
     >
+      <div className="img-field">
+        <span className="field__label">Изображение</span>
+        {local.id === null ? (
+          <p className="img-field__hint">
+            Сохраните модель, затем добавьте изображение.
+          </p>
+        ) : (
+          <div className="img-field__row">
+            <div className="img-field__preview">
+              {imageUrl ? (
+                <img src={imageUrl} alt="" />
+              ) : (
+                <span>Нет фото</span>
+              )}
+            </div>
+            <div className="img-field__actions">
+              <label
+                className={`card__cta card__cta--secondary${imgBusy ? " is-disabled" : ""}`}
+              >
+                {imgBusy ? "…" : imageUrl ? "Заменить" : "Загрузить"}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  hidden
+                  disabled={imgBusy}
+                  onChange={(e) => {
+                    void pickFile(e.target.files?.[0], local.id as number);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              {imageUrl && (
+                <button
+                  type="button"
+                  className="card__cta card__cta--danger"
+                  disabled={imgBusy}
+                  onClick={() => void removeImage(local.id as number)}
+                >
+                  Удалить
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        {imgError && (
+          <div className="img-field__error" role="alert">
+            {imgError}
+          </div>
+        )}
+        <p className="img-field__hint">JPEG, PNG или WebP, до 2 МБ.</p>
+      </div>
+
       <label className="field">
         <span className="field__label">Категория</span>
         <select

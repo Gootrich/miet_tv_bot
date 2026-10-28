@@ -47,6 +47,15 @@ def _can_book(user: User, access_policy: str) -> bool:
     return False
 
 
+def _require_active_user(user: User) -> None:
+    """Только одобренные активные пользователи могут создавать/изменять брони."""
+    if not user.is_active or user.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Только одобренные пользователи могут создавать и изменять брони.",
+        )
+
+
 async def _check_quantity_availability(
     session: AsyncSession,
     model: EquipmentModel,
@@ -109,6 +118,7 @@ async def create_booking(
     Используется свежая сессия (не та, что пришла из get_current_user),
     чтобы коммиты из get_current_user не влияли на транзакцию.
     """
+    _require_active_user(user)
     await check_time_step(planned_start, planned_end)
     start_dt = _parse_dt(planned_start)
     end_dt = _parse_dt(planned_end)
@@ -813,6 +823,7 @@ async def create_bookings_batch(
     :return: список Booking в порядке items, group_id = id первой.
     :raises HTTPException: если хоть одна позиция невалидна — откат всей tx.
     """
+    _require_active_user(user)
     await check_time_step(planned_start, planned_end)
     start_dt = _parse_dt(planned_start)
     end_dt = _parse_dt(planned_end)
@@ -877,6 +888,7 @@ async def add_to_booking(
     Владелец — только пользователь брони. Время берётся из базовой брони.
     Использует тот же asyncio.Lock, что и create_booking.
     """
+    _require_active_user(user)
     base = await session.get(Booking, booking_id)
     if base is None:
         raise HTTPException(404, "Бронирование не найдено.")

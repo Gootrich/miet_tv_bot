@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import {
   IconAudio,
   IconCamera,
@@ -28,14 +28,19 @@ const GLYPH: Record<string, ComponentType<{ className?: string }>> = {
 };
 
 export function EquipmentThumb({ src, categoryCode, title }: Props) {
-  if (src) {
+  const [state, setState] = useState<"loading" | "ok" | "error">(src ? "loading" : "error");
+  useEffect(() => { setState(src ? "loading" : "error"); }, [src]);
+
+  if (src && state !== "error") {
     return (
-      <div className="thumb">
+      <div className={`thumb${state === "loading" ? " thumb--loading" : ""}`}>
         <img
           src={src}
           alt={title}
           loading="lazy"
           className="thumb__img"
+          onLoad={() => setState("ok")}
+          onError={() => setState("error")}
         />
       </div>
     );

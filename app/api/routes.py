@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -804,6 +804,68 @@ async def admin_delete_model(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     await session.commit()
     return {"status": "deleted", "id": model_id}
+
+
+# --- изображение модели (сырое тело запроса, без python-multipart) ---
+
+@router.put("/admin/equipment/models/{model_id}/image")
+async def admin_upload_model_image(
+    model_id: int,
+    request: Request,
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.models.equipment import EquipmentModel
+    from app.services import model_images as mimg
+
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > mimg.MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Файл больше 2 МБ.")
+    chunks, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > mimg.MAX_IMAGE_BYTES:
+            raise HTTPException(status_code=413, detail="Файл больше 2 МБ.")
+        chunks.append(chunk)
+    data = b"".join(chunks)
+
+    model = await session.get(EquipmentModel, model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Модель не найдена.")
+    try:
+        filename = mimg.save_image(data)
+    except mimg.ImageError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    old = model.image_filename
+    model.image_filename = filename
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        (mimg.MODELS_DIR / filename).unlink(missing_ok=True)
+        raise
+    await mimg.delete_file_if_unused(session, old, model_id)
+    return {"id": model_id, "image_url": f"/api/media/models/{filename}"}
+
+
+@router.delete("/admin/equipment/models/{model_id}/image")
+async def admin_delete_model_image(
+    model_id: int,
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.models.equipment import EquipmentModel
+    from app.services import model_images as mimg
+
+    model = await session.get(EquipmentModel, model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Модель не найдена.")
+    old = model.image_filename
+    model.image_filename = None
+    await session.commit()
+    await mimg.delete_file_if_unused(session, old, model_id)
+    return {"id": model_id, "image_url": None}
 
 
 # ============================================================

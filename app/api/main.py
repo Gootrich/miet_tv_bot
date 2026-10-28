@@ -7,9 +7,11 @@ Telegram-бота (app/main.py).
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router as catalog_router
 from app.db.session import close_database_connection
+from app.services.model_images import MEDIA_DIR, MODELS_DIR
 
 
 @asynccontextmanager
@@ -28,3 +30,6 @@ app = FastAPI(
 )
 
 app.include_router(catalog_router)
+
+MODELS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/api/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")

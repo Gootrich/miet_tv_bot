@@ -25,10 +25,32 @@ export function TopBar({ title = "Каталог" }: { title?: string } = {}) {
     };
   }, []);
 
+  // Сворачивание при прокрутке вниз, показ при прокрутке вверх.
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    let lastY = window.scrollY;
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = window.scrollY;
+        const dy = y - lastY;
+        if (y <= 8) setHidden(false);
+        else if (dy > 6 && y > 64) setHidden(true);
+        else if (dy < -6) setHidden(false);
+        if (Math.abs(dy) > 6 || y <= 8) lastY = y;
+        ticking = false;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   const clock = formatClock(now);
 
   return (
-    <header className="top-bar">
+    <header className={`top-bar${hidden ? " is-hidden" : ""}`}>
       <div className="top-bar__inner">
         <h1 className="top-bar__title">{title}</h1>
         <span className="top-bar__brand" aria-hidden="true">

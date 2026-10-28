@@ -32,3 +32,5 @@ frontend/dist/
 .env.bak.*
 *.bak.*
 *.before_deploy
+data/
+*.bak-devmode-*
