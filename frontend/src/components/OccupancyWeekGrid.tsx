@@ -60,6 +60,15 @@ function pctOfTime(ms: number, dayStartMs: number): number {
   return ((ms - dayStartMs) / 3_600_000 / WORK_HOURS_PER_DAY) * 100;
 }
 
+const OCC_LABEL: Record<number, string> = {
+  0: "Свободно",
+  1: "Загрузка низкая",
+  2: "Загрузка низкая",
+  3: "Загрузка средняя",
+  4: "Загрузка высокая",
+  5: "Занято",
+};
+
 function groupUser(g: BookingOut[]): string {
   return g[0].user_name ?? `Пользователь ${g[0].user_id}`;
 }
@@ -189,6 +198,7 @@ export function OccupancyWeekGrid({
   );
 
   const isToday = sameDay(selectedDay, today);
+  const selLv = levelFor(perDayUtil.get(dayKey(selectedDay)) ?? 0);
   const nowVisible = isToday && nowMs >= dayStartMs && nowMs <= dayEndMs;
   const nowPct = nowVisible ? pctOfTime(nowMs, dayStartMs) : -1;
 
@@ -222,7 +232,7 @@ export function OccupancyWeekGrid({
               aria-selected={dSelected}
               className={cls}
               onClick={() => onSelectDay(d)}
-              aria-label={`${weekdayShort(d)}, ${d.getDate()}`}
+              aria-label={`${weekdayShort(d)}, ${d.getDate()}, ${OCC_LABEL[lv] ?? ""}`}
             >
               <span className="occ-week__day-wd">{weekdayShort(d)}</span>
               <span className="occ-week__day-num">{d.getDate()}</span>
@@ -230,6 +240,11 @@ export function OccupancyWeekGrid({
             </button>
           );
         })}
+      </div>
+
+      <div className="occ-week__caption">
+        <span className={`occ-week__caption-dot occ-week__caption-dot--l${selLv}`} aria-hidden="true" />
+        {OCC_LABEL[selLv] ?? ""}
       </div>
 
       <div className="occ-week__body">

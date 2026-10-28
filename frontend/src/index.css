@@ -2949,3 +2949,54 @@ option:checked {
 .bookings-page .card .card__cta--danger:hover {
   background: color-mix(in srgb, var(--md-sys-color-error) 10%, transparent);
 }
+
+/* Занятость (неделя): спокойная версия */
+.occ-week__gridline { opacity: 0.18; }
+.occ-week__gridline.is-major { opacity: 0.35; }
+.occ-week__axis-hour { border-left-color: color-mix(in srgb, var(--md-sys-color-outline-variant) 40%, transparent); }
+.occ-week__label,
+.occ-week__lane { border-bottom-color: color-mix(in srgb, var(--md-sys-color-outline-variant) 50%, transparent); }
+
+.occ-week__block {
+  border-radius: var(--md-shape-corner-md);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 40%, transparent);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 24%, var(--md-sys-color-surface-container));
+  color: var(--md-sys-color-on-surface);
+}
+.occ-week__block.is-pending {
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-warning) 35%, transparent);
+  border-left: 3px solid var(--md-sys-color-warning);
+  background: color-mix(in srgb, var(--md-sys-color-warning) 16%, var(--md-sys-color-surface-container));
+  color: var(--md-sys-color-on-surface);
+}
+
+.occ-week__now {
+  width: 1px;
+  margin-left: 0;
+  background: color-mix(in srgb, var(--md-sys-color-error) 60%, transparent);
+}
+
+.occ-week__day.is-selected {
+  background: var(--md-sys-color-primary);
+  border-color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+.occ-week__day.is-selected .occ-week__day-wd,
+.occ-week__day.is-selected .occ-week__day-num { color: inherit; }
+.occ-week__day.is-selected .occ-week__day-dot { background: var(--md-sys-color-on-primary); opacity: 0.9; }
+
+.occ-week__caption {
+  display: flex;
+  align-items: center;
+  gap: var(--md-space-2);
+  font: var(--md-type-label-large);
+  color: var(--md-sys-color-on-surface-variant);
+}
+.occ-week__caption-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--md-shape-corner-full);
+  background: var(--md-sys-color-primary);
+}
+.occ-week__caption-dot--l0 { background: color-mix(in srgb, var(--md-sys-color-on-surface-variant) 50%, transparent); }
+.occ-week__caption-dot--l5 { background: var(--md-sys-color-warning); }
