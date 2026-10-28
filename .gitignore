@@ -35,3 +35,4 @@ frontend/dist/
 data/
 *.bak-devmode-*
 frontend/src/version.ts
+*.bak-*
