@@ -3000,3 +3000,77 @@ option:checked {
 }
 .occ-week__caption-dot--l0 { background: color-mix(in srgb, var(--md-sys-color-on-surface-variant) 50%, transparent); }
 .occ-week__caption-dot--l5 { background: var(--md-sys-color-warning); }
+
+/* Профиль / админка: чипы ролей читаются в обеих темах */
+.role-chip {
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-type-label-medium);
+  padding: 4px 10px;
+}
+
+/* Профиль: плашка участника (M3) */
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: var(--md-space-4);
+  padding: var(--md-space-4);
+  background: var(--md-sys-color-surface-container);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-corner-xl);
+}
+.profile-avatar {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--md-shape-corner-full);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  font: var(--md-type-title-large);
+}
+.profile-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.profile-head__body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.profile-head__name {
+  font: var(--md-type-title-large);
+  color: var(--md-sys-color-on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-head__sub {
+  font: var(--md-type-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-head__roles { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+.profile-head__meta {
+  font: var(--md-type-label-medium);
+  font-variant-numeric: tabular-nums;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* Профиль: нижний блок о приложении */
+.profile-footer {
+  margin-top: var(--md-space-4);
+  padding: var(--md-space-4) var(--md-space-2);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-space-1);
+}
+.profile-footer p { margin: 0; }
+.profile-footer__title { font: var(--md-type-title-medium); color: var(--md-sys-color-on-surface); }
+.profile-footer__text { font: var(--md-type-body-medium); color: var(--md-sys-color-on-surface-variant); }
+.profile-footer__note { font: var(--md-type-label-medium); color: var(--md-sys-color-on-surface-variant); }
+.profile-footer__version {
+  font: var(--md-type-label-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.8;
+}

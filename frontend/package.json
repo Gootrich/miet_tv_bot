@@ -1,10 +1,12 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0-test.1",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/gen-version.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/gen-version.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

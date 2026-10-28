@@ -34,3 +34,4 @@ frontend/dist/
 *.before_deploy
 data/
 *.bak-devmode-*
+frontend/src/version.ts

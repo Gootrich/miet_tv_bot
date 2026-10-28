@@ -8,6 +8,31 @@ import { fetchMe, type UserOut } from "../api/admin";
 import { ApiError } from "../api/client";
 import { useTheme } from "../theme/useTheme";
 import type { ThemeChoice } from "../theme/ThemeProvider";
+import { APP_VERSION, APP_BUILD, APP_BUILD_DATE } from "../version";
+
+type TgWebApp = { initDataUnsafe?: { user?: { id?: number; photo_url?: string } } };
+
+function tgPhotoUrl(telegramId: number | string): string | null {
+  const wa = (window as unknown as { Telegram?: { WebApp?: TgWebApp } }).Telegram?.WebApp;
+  const u = wa?.initDataUnsafe?.user;
+  if (!u?.photo_url || String(u.id) !== String(telegramId)) return null;
+  return u.photo_url;
+}
+
+function ProfileAvatar({ telegramId, name }: { telegramId: number | string; name: string }) {
+  const [failed, setFailed] = useState(false);
+  const url = failed ? null : tgPhotoUrl(telegramId);
+  const initial = (name.trim()[0] ?? "?").toUpperCase();
+  return (
+    <span className="profile-avatar" aria-hidden="true">
+      {url ? (
+        <img src={url} alt="" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
+      ) : (
+        initial
+      )}
+    </span>
+  );
+}
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Администратор",
@@ -71,51 +96,62 @@ export function ProfilePage({
       (c) => c === "admin" || c === "miettv_head" || c === "infocus_head",
     );
 
-  const { choice, resolved, setChoice } = useTheme();
+  const { choice, setChoice } = useTheme();
+
+  const themeSwitch = (
+    <div className="segmented" role="radiogroup" aria-label="Выбор темы">
+      {(["auto", "light", "dark"] as ThemeChoice[]).map((code) => {
+        const label = code === "auto" ? "Системная" : code === "light" ? "Светлая" : "Тёмная";
+        const active = choice === code;
+        return (
+          <button
+            key={code}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            className={`segmented__item${active ? " is-active" : ""}`}
+            onClick={() => setChoice(code)}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="page">
       <TopBar title="Профиль" />
       <main className="page__content">
+        {state.kind === "me" && (
+          <section className="profile-head">
+            <ProfileAvatar telegramId={state.me.telegram_id} name={state.me.full_name} />
+            <div className="profile-head__body">
+              <div className="profile-head__name">
+                {state.me.username ? `@${state.me.username}` : state.me.full_name}
+              </div>
+              {state.me.username && (
+                <div className="profile-head__sub">{state.me.full_name}</div>
+              )}
+              {state.me.role_codes.length > 0 && (
+                <div className="profile-head__roles">
+                  {state.me.role_codes.map((c) => (
+                    <span key={c} className="role-chip">{roleLabel(c)}</span>
+                  ))}
+                </div>
+              )}
+              <div className="profile-head__meta">
+                TG {state.me.telegram_id} · {state.me.status}
+              </div>
+            </div>
+          </section>
+        )}
 
-        <div className="card">
-          <h2 className="card__title">Тема</h2>
-          <p className="card__subtitle">
-            {choice === "auto"
-              ? `Системная (сейчас ${resolved === "dark" ? "тёмная" : "светлая"})`
-              : "Применяется ко всем разделам и сохраняется между запусками."}
-          </p>
-          <div
-            className="segmented"
-            role="radiogroup"
-            aria-label="Выбор темы"
-            style={{ marginTop: 8 }}
-          >
-            {(["auto", "light", "dark"] as ThemeChoice[]).map((code) => {
-              const label =
-                code === "auto"
-                  ? "Системная"
-                  : code === "light"
-                  ? "Светлая"
-                  : "Тёмная";
-              const active = choice === code;
-              return (
-                <button
-                  key={code}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  className={`segmented__item${active ? " is-active" : ""}`}
-                  onClick={() => setChoice(code)}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {themeSwitch}
 
-        {state.kind === "loading" && (<div className="empty"><span className="spinner" aria-hidden="true" /><p className="empty__text">Загрузка…</p></div>)}
+        {state.kind === "loading" && (
+          <div className="empty"><span className="spinner" aria-hidden="true" /><p className="empty__text">Загрузка…</p></div>
+        )}
 
         {state.kind === "error" && (
           <div className="card">
@@ -141,52 +177,24 @@ export function ProfilePage({
           />
         )}
 
-        {state.kind === "me" && (
-          <>
-            <div className="card">
-              <h2 className="card__title">{state.me.full_name}</h2>
-              <p className="card__subtitle">
-                @{state.me.username ?? "—"} · TG {state.me.telegram_id}
-              </p>
-              <p className="card__subtitle">
-                Статус: <b>{state.me.status}</b>
-              </p>
-              <p className="card__subtitle">
-                Роли:{" "}
-                {state.me.role_codes.length
-                  ? state.me.role_codes.map(roleLabel).join(", ")
-                  : "нет"}
-              </p>
-            </div>
+        {state.kind === "me" && isAdminScope && <AdminSection me={state.me} />}
 
-            {isAdminScope && <AdminSection me={state.me} />}
-
-            {!isAdminScope && (
-              <div className="card">
-                <h2 className="card__title">О клубе</h2>
-                <p className="card__subtitle">
-                  MIET TV Equipment Bot — единая система бронирования
-                  оборудования медиаклуба.
-                </p>
-              </div>
-            )}
-
-            <div className="card">
-              <h2 className="card__title">Связь с разработчиком</h2>
-              <p className="card__subtitle">
-                По вопросам работы приложения —{" "}
-                <a
-                  className="link"
-                  href="https://t.me/gootrich"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  @gootrich
-                </a>
-              </p>
-            </div>
-          </>
-        )}
+        <footer className="profile-footer">
+          <p className="profile-footer__title">MediaHUB</p>
+          <p className="profile-footer__text">
+            Выбирай технику, планируй съёмки и управляй своими бронированиями в одном месте.
+          </p>
+          <p className="profile-footer__text">
+            Разработчик:{" "}
+            <a className="link" href="https://t.me/gootrich" target="_blank" rel="noopener noreferrer">
+              @gootrich
+            </a>
+          </p>
+          <p className="profile-footer__note">Приложение находится в разработке.</p>
+          <p className="profile-footer__version">
+            v{APP_VERSION} · build {APP_BUILD} · {APP_BUILD_DATE}
+          </p>
+        </footer>
       </main>
       <BottomNav active="profile" onSelect={onNavigate} />
     </div>
