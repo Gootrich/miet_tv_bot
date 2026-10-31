@@ -641,6 +641,7 @@ async def get_bookings(
     :param limit: 1..100, дефолт 20
     """
     from sqlalchemy.orm import selectinload
+    from app.models.user import User as UserModel
 
     if scope not in ("all", "mine"):
         raise HTTPException(
@@ -673,7 +674,7 @@ async def get_bookings(
     stmt = (
         select(Booking)
         .options(
-            selectinload(Booking.user),
+            selectinload(Booking.user).selectinload(UserModel.roles),
             selectinload(Booking.model).selectinload(
                 EquipmentModel.category
             ),
@@ -768,12 +769,13 @@ async def get_bookings_by_ids(
     if not booking_ids:
         return []
     from sqlalchemy.orm import selectinload
+    from app.models.user import User as UserModel
 
     stmt = (
         select(Booking)
         .where(Booking.id.in_(booking_ids))
         .options(
-            selectinload(Booking.user),
+            selectinload(Booking.user).selectinload(UserModel.roles),
             selectinload(Booking.model).selectinload(
                 EquipmentModel.category
             ),

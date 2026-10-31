@@ -56,7 +56,8 @@ export function EquipmentCard({
   selected = false,
   onToggleSelect,
   favorite,
-  onToggleFavorite
+  onToggleFavorite,
+  onOpenAliases,
 }: {
   item: CatalogItem;
   showCategory?: boolean;
@@ -64,6 +65,7 @@ export function EquipmentCard({
   onToggleSelect?: (item: CatalogItem) => void;
   favorite?: boolean;
   onToggleFavorite?: () => void;
+  onOpenAliases?: () => void;
 }) {
   const toast = useToast();
   const [modalOpen, setModalOpen] = useState(false);
@@ -262,6 +264,19 @@ export function EquipmentCard({
             placeholder="Необязательно"
           />
         </label>
+
+        {onOpenAliases && (
+          <button
+            type="button"
+            className="modal-link"
+            onClick={() => {
+              setModalOpen(false);
+              onOpenAliases();
+            }}
+          >
+            Альтернативные названия
+          </button>
+        )}
       </Modal>
     </>
   );

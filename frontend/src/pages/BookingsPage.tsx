@@ -18,34 +18,20 @@ import {
 import {
   addToBooking,
   cancelBooking,
-  fetchAllHistory,
   fetchBookings,
   moveBooking,
 } from "../api/bookings";
 
-type Tab = "mine" | "all" | "history";
+type Mode = "active" | "history";
+type Scope = "mine" | "all";
 type Club = "all" | "photographer" | "videographer";
-type EventFilter = "all" | "created" | "checkout" | "return" | "cancelled" | "moved";
 
 const PAGE_SIZE = 20;
 
 const CLUB_CHIPS: ChipItem[] = [
-  { code: "all", label: "Все" },
-  { code: "photographer", label: "Фотоклуб" },
-  { code: "videographer", label: "МИЭТ-ТВ" },
-];
-
-const HISTORY_CLUB_CHIPS: ChipItem[] = [
   { code: "all", label: "Все клубы" },
   { code: "photographer", label: "Фотоклуб" },
   { code: "videographer", label: "МИЭТ-ТВ" },
-];
-
-const EVENT_CHIPS: ChipItem[] = [
-  { code: "all", label: "Все события" },
-  { code: "created", label: "Создана" },
-  { code: "moved", label: "Перенесена" },
-  { code: "cancelled", label: "Отменена" },
 ];
 
 type LoadState =
@@ -53,21 +39,6 @@ type LoadState =
   | { kind: "auth"; error: ApiError }
   | { kind: "error"; message: string }
   | { kind: "ready"; bookings: BookingOut[] };
-
-type HistoryState =
-  | { kind: "idle" }
-  | { kind: "loading" }
-  | { kind: "auth"; error: ApiError }
-  | { kind: "error"; message: string }
-  | { kind: "ready"; events: import("../api/catalog").BookingHistoryOut[] };
-
-const EVENT_LABEL: Record<string, string> = {
-  created: "Создана",
-  checkout: "Выдача (архив)",
-  return: "Возврат (архив)",
-  cancelled: "Отменена",
-  moved: "Перенесена",
-};
 
 function displayName(b: BookingOut): string {
   const sn = b.model_short_name;
@@ -155,19 +126,14 @@ function pluralPositions(n: number): string {
 
 export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const toast = useToast();
-  const [tab, setTab] = useState<Tab>("mine");
+  const [mode, setMode] = useState<Mode>("active");
+  const [scope, setScope] = useState<Scope>("mine");
   const [meId, setMeId] = useState<number | null>(null);
 
   const [club, setClub] = useState<Club>("all");
-  const [showCancelled, setShowCancelled] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const bookingsFetchingRef = useRef(false);
-
-  const [history, setHistory] = useState<HistoryState>({ kind: "idle" });
-  const [historyScope, setHistoryScope] = useState<"all" | "mine">("all");
-  const [historyClub, setHistoryClub] = useState<Club>("all");
-  const [historyEvent, setHistoryEvent] = useState<EventFilter>("all");
-  const [historyBusy, setHistoryBusy] = useState(false);
 
   // Отмена (по одной брони)
   const [cancelId, setCancelId] = useState<number | null>(null);
@@ -223,23 +189,24 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadBookings = async (mode: "replace" | "append" = "replace") => {
+  const loadBookings = async (loadKind: "replace" | "append" = "replace") => {
     if (bookingsFetchingRef.current) return;
     bookingsFetchingRef.current = true;
-    if (mode === "replace") setState({ kind: "loading" });
+    if (loadKind === "replace") setState({ kind: "loading" });
     try {
       const beforeId =
-        mode === "append" && state.kind === "ready" && state.bookings.length > 0
+        loadKind === "append" && state.kind === "ready" && state.bookings.length > 0
           ? state.bookings[state.bookings.length - 1].id
           : undefined;
       const data = await fetchBookings({
-        scope: tab === "mine" ? "mine" : "all",
+        scope,
         club: club === "all" ? undefined : club,
-        includeCancelled: showCancelled,
+        status: mode === "active" ? "pending,confirmed" : "cancelled,completed",
+        includeCancelled: mode === "history",
         beforeId,
         limit: PAGE_SIZE,
       });
-      if (mode === "append" && state.kind === "ready") {
+      if (loadKind === "append" && state.kind === "ready") {
         setState({ kind: "ready", bookings: [...state.bookings, ...data] });
       } else {
         setState({ kind: "ready", bookings: data });
@@ -257,65 +224,12 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
     }
   };
 
-  const loadHistory = async (mode: "replace" | "append" = "replace") => {
-    if (historyBusy) return;
-    setHistoryBusy(true);
-    if (mode === "replace") setHistory({ kind: "loading" });
-    try {
-      const beforeId =
-        mode === "append" && history.kind === "ready" && history.events.length > 0
-          ? history.events[history.events.length - 1].id
-          : undefined;
-      const data = await fetchAllHistory({
-        scope: historyScope,
-        club: historyClub === "all" ? undefined : historyClub,
-        eventType: historyEvent === "all" ? undefined : historyEvent,
-        beforeId,
-        limit: PAGE_SIZE,
-      });
-      if (mode === "append" && history.kind === "ready") {
-        setHistory({ kind: "ready", events: [...history.events, ...data] });
-      } else {
-        setHistory({ kind: "ready", events: data });
-      }
-    } catch (e) {
-      if (isAuthError(e)) {
-        setHistory({ kind: "auth", error: e });
-      } else {
-        const msg = e instanceof Error ? e.message : "Ошибка загрузки истории";
-        setHistory({ kind: "error", message: msg });
-        toast.error(msg);
-      }
-    } finally {
-      setHistoryBusy(false);
-    }
-  };
-
   useEffect(() => {
-    if (tab !== "history") void loadBookings("replace");
+    void loadBookings("replace");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, club, showCancelled]);
+  }, [mode, scope, club]);
 
-  useEffect(() => {
-    if (tab === "history") void loadHistory("replace");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, historyScope, historyClub, historyEvent]);
-
-  // Локальная фильтрация «Мои» (страховка)
-  const visibleBookings = useMemo(() => {
-    if (state.kind !== "ready") return [];
-    if (tab === "mine") {
-      return state.bookings.filter(
-        (b) =>
-          (meId == null || b.user_id === meId) &&
-          (b.status === "pending" ||
-            b.status === "confirmed" ||
-            b.status === "completed" ||
-            (showCancelled && b.status === "cancelled")),
-      );
-    }
-    return state.bookings;
-  }, [state, tab, meId, showCancelled]);
+  const visibleBookings = state.kind === "ready" ? state.bookings : [];
 
   // Группировка
   const groups = useMemo(() => groupBookings(visibleBookings), [visibleBookings]);
@@ -465,60 +379,65 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
     <div className="page bookings-page">
       <main className="page__content">
 
-        <div className="segmented" role="tablist" aria-label="Разделы броней">
-          <button type="button" role="tab"
-            aria-selected={tab === "mine"}
-            className={`segmented__item${tab === "mine" ? " is-active" : ""}`}
-            onClick={() => setTab("mine")}>Мои</button>
-          <button type="button" role="tab"
-            aria-selected={tab === "all"}
-            className={`segmented__item${tab === "all" ? " is-active" : ""}`}
-            onClick={() => setTab("all")}>Все</button>
-          <button type="button" role="tab"
-            aria-selected={tab === "history"}
-            className={`segmented__item${tab === "history" ? " is-active" : ""}`}
-            onClick={() => setTab("history")}>История</button>
+        <div className="bookings-toolbar">
+          <div className="segmented" role="tablist" aria-label="Активные или история">
+            <button type="button" role="tab"
+              aria-selected={mode === "active"}
+              className={`segmented__item${mode === "active" ? " is-active" : ""}`}
+              onClick={() => setMode("active")}>Активные</button>
+            <button type="button" role="tab"
+              aria-selected={mode === "history"}
+              className={`segmented__item${mode === "history" ? " is-active" : ""}`}
+              onClick={() => setMode("history")}>История</button>
+          </div>
+          <div className="bookings-scope" role="tablist" aria-label="Мои или все">
+            <button type="button" role="tab"
+              aria-selected={scope === "mine"}
+              className={scope === "mine" ? "is-active" : ""}
+              onClick={() => setScope("mine")}>Мои</button>
+            <button type="button" role="tab"
+              aria-selected={scope === "all"}
+              className={scope === "all" ? "is-active" : ""}
+              onClick={() => setScope("all")}>Все</button>
+          </div>
+          <button type="button"
+            className={`bookings-filters-toggle${filtersOpen ? " is-active" : ""}${club !== "all" ? " has-value" : ""}`}
+            onClick={() => setFiltersOpen((v) => !v)}
+            aria-expanded={filtersOpen}>Фильтры</button>
         </div>
-
-        {tab !== "history" && (
-          <ChipsRow
-            items={CLUB_CHIPS}
-            value={club}
-            onChange={(code) => setClub(code as Club)}
-            ariaLabel="Клуб"
-          />
+        {filtersOpen && (
+          <div className="bookings-filters">
+            <ChipsRow
+              items={CLUB_CHIPS}
+              value={club}
+              onChange={(code) => setClub(code as Club)}
+              ariaLabel="Клуб"
+            />
+          </div>
         )}
 
-        {tab !== "history" && (
-          <label className="booking-filter">
-            <input type="checkbox" checked={showCancelled}
-              onChange={(e) => setShowCancelled(e.target.checked)} />
-            Показывать отменённые
-          </label>
-        )}
-
-        {tab !== "history" && state.kind === "auth" && (
+        {state.kind === "auth" && (
           <AuthRequired
             error={state.error}
             onRetry={() => loadBookings("replace")}
           />
         )}
-        {tab !== "history" && state.kind === "loading" && (
+        {state.kind === "loading" && (
           <div className="empty"><span className="spinner" aria-hidden="true" /><p className="empty__text">Загрузка…</p></div>
         )}
-        {tab !== "history" && state.kind === "error" && (
+        {state.kind === "error" && (
           <div className="empty">
             <span className="empty__icon" aria-hidden="true"><IconAlert size={22} /></span><p className="empty__text">Ошибка: {state.message}</p>
             <button className="empty__action" type="button" onClick={() => loadBookings("replace")}>Повторить</button>
           </div>
         )}
-        {tab !== "history" && state.kind === "ready" && groups.length === 0 && (
+        {state.kind === "ready" && groups.length === 0 && (
           <div className="empty">
-            <span className="empty__icon" aria-hidden="true"><IconInbox size={22} /></span><p className="empty__text">{tab === "mine" ? "Нет ваших броней" : "Нет броней"}</p>
+            <span className="empty__icon" aria-hidden="true"><IconInbox size={22} /></span><p className="empty__text">{mode === "history" ? (scope === "mine" ? "Ваша история пуста" : "История пуста") : (scope === "mine" ? "Нет ваших броней" : "Нет броней")}</p>
           </div>
         )}
 
-        {tab !== "history" && state.kind === "ready" && groups.length > 0 && (
+        {state.kind === "ready" && groups.length > 0 && (
           <div className="list">
             {groups.map((g) => {
               const mine = meId != null && g.primary.user_id === meId;
@@ -542,8 +461,14 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
                   </div>
 
                   {g.primary.user_name && (
-                    <p className="card__subtitle">
-                      {mine ? "Вы" : g.primary.user_name}
+                    <p className="card__subtitle bookings-meta">
+                      <span className="bookings-meta__user">{mine ? "Вы" : g.primary.user_name}</span>
+                      {g.primary.user_clubs?.includes("photographer") && (
+                        <span className="badge badge--club">Фотоклуб</span>
+                      )}
+                      {g.primary.user_clubs?.includes("videographer") && (
+                        <span className="badge badge--club">МИЭТ-ТВ</span>
+                      )}
                     </p>
                   )}
                   <div className="booking-time">{fmtShort(g.primary.planned_start)} <span className="booking-time__sep">→</span> {fmtShort(g.primary.planned_end)}</div>
@@ -636,78 +561,11 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
           </div>
         )}
 
-        {tab !== "history" && canLoadMore && (
+        {canLoadMore && (
           <div className="booking-loadmore">
             <button type="button" className="empty__action"
               onClick={() => loadBookings("append")}>Показать ещё</button>
           </div>
-        )}
-
-        {/* История (без изменений) */}
-        {tab === "history" && (
-          <>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <div className="segmented" role="tablist" aria-label="Scope истории">
-                <button type="button" role="tab" aria-selected={historyScope === "all"}
-                  className={`segmented__item${historyScope === "all" ? " is-active" : ""}`}
-                  onClick={() => setHistoryScope("all")}>Все</button>
-                <button type="button" role="tab" aria-selected={historyScope === "mine"}
-                  className={`segmented__item${historyScope === "mine" ? " is-active" : ""}`}
-                  onClick={() => setHistoryScope("mine")}>Мои</button>
-              </div>
-              <button type="button" className="empty__action" disabled={historyBusy}
-                onClick={() => loadHistory("replace")}>
-                {historyBusy ? "…" : "Обновить"}
-              </button>
-            </div>
-            <ChipsRow items={HISTORY_CLUB_CHIPS} value={historyClub}
-              onChange={(code) => setHistoryClub(code as Club)} ariaLabel="Клуб истории" />
-            <ChipsRow items={EVENT_CHIPS} value={historyEvent}
-              onChange={(code) => setHistoryEvent(code as EventFilter)} ariaLabel="Тип события" />
-
-            {history.kind === "auth" && (
-              <AuthRequired
-                error={history.error}
-                onRetry={() => loadHistory("replace")}
-              />
-            )}
-            {history.kind === "loading" && <div className="empty"><span className="spinner" aria-hidden="true" /><p className="empty__text">Загрузка истории…</p></div>}
-            {history.kind === "error" && (
-              <div className="empty">
-                <span className="empty__icon" aria-hidden="true"><IconAlert size={22} /></span><p className="empty__text">Ошибка: {history.message}</p>
-                <button className="empty__action" type="button" onClick={() => loadHistory("replace")}>Повторить</button>
-              </div>
-            )}
-            {history.kind === "ready" && history.events.length === 0 && (
-              <div className="empty"><span className="empty__icon" aria-hidden="true"><IconInbox size={22} /></span><p className="empty__text">Событий пока нет</p></div>
-            )}
-            {history.kind === "ready" && history.events.length > 0 && (
-              <div className="list">
-                {history.events.map((e) => (
-                  <div key={e.id} className="card">
-                    <div className="card__heading">
-                      <h2 className="card__title">{EVENT_LABEL[e.event_type] ?? e.event_type}</h2>
-                      <span className="card__subtitle">#{e.id}</span>
-                    </div>
-                    <p className="card__subtitle">Бронь #{e.booking_id}</p>
-                    <p className="card__subtitle">
-                      {fmt(e.created_at)}
-                      {e.actor_full_name ? ` · ${e.actor_full_name}${e.actor_username ? ` (@${e.actor_username})` : ""}` : ""}
-                    </p>
-                    {e.details && (
-                      <p className="card__subtitle" style={{ opacity: 0.8 }}>{e.details}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            {history.kind === "ready" && history.events.length === PAGE_SIZE && (
-              <div className="booking-loadmore">
-                <button type="button" className="empty__action" disabled={historyBusy}
-                  onClick={() => loadHistory("append")}>{historyBusy ? "…" : "Показать ещё"}</button>
-              </div>
-            )}
-          </>
         )}
 
         {/* Модалка: отмена */}

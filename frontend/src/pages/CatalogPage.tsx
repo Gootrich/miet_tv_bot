@@ -246,49 +246,6 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
     <div className="page">
       <main className={`page__content${selectedCount > 0 ? " page__content--with-fab" : ""}`}>
 
-        {rangeActive ? (
-          <div className="period-indicator" role="status" aria-label="Выбранный период">
-            <div className="period-indicator__main">
-              <span className="period-indicator__icon"><ClockIcon /></span>
-              <span className="period-indicator__text">{formatRangeShort(cart.range)}</span>
-            </div>
-            <div className="period-indicator__actions">
-              <button
-                type="button"
-                className="period-indicator__btn"
-                onClick={() => onNavigate("occupancy")}
-              >
-                Изменить
-              </button>
-              <button
-                type="button"
-                className="period-indicator__btn period-indicator__btn--icon"
-                onClick={() => cartSetRange({ start: null, end: null })}
-                aria-label="Сбросить период"
-                title="Сбросить"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="period-indicator period-indicator--empty"
-            onClick={() => onNavigate("occupancy")}
-          >
-            <span className="period-indicator__icon"><ClockIcon /></span>
-            <span className="period-indicator__empty-text">Укажите время — увидите доступность</span>
-            <span className="period-indicator__empty-arrow" aria-hidden="true">→</span>
-          </button>
-        )}
-
-        <OccupancySummary />
-        <RecentActivity
-          onOpenBookings={() => onNavigate("bookings")}
-          onPickModel={(name) => { setQuery(name); setCategory("Все"); }}
-        />
-
         <label className="search" aria-label="Поиск оборудования">
           <span className="search__icon" aria-hidden="true"><IconSearch size={18} /></span>
           <input
@@ -309,20 +266,68 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
           )}
         </label>
 
-        <button
-          type="button"
-          className={`fav-filter${showFavorites ? " is-active" : ""}`}
-          onClick={() => setShowFavorites((v) => !v)}
-          aria-pressed={showFavorites}
-        >
-          <span className="fav-filter__star" aria-hidden="true">
-            {showFavorites ? "\u2605" : "\u2606"}
-          </span>
-          <span>Избранное</span>
-          {favoriteSet.size > 0 && (
-            <span className="fav-filter__count">{favoriteSet.size}</span>
+        <div className="quick-row">
+          {rangeActive ? (
+            <button
+              type="button"
+              className="period-pill"
+              onClick={() => onNavigate("occupancy")}
+              title="Изменить период"
+            >
+              <span className="period-pill__icon" aria-hidden="true"><ClockIcon /></span>
+              <span className="period-pill__text">{formatRangeShort(cart.range)}</span>
+              <span
+                role="button"
+                tabIndex={0}
+                className="period-pill__clear"
+                aria-label="Сбросить период"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  cartSetRange({ start: null, end: null });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    cartSetRange({ start: null, end: null });
+                  }
+                }}
+              >×</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="period-pill period-pill--empty"
+              onClick={() => onNavigate("occupancy")}
+            >
+              <span className="period-pill__icon" aria-hidden="true"><ClockIcon /></span>
+              <span className="period-pill__text">Выбрать время</span>
+            </button>
           )}
-        </button>
+          <button
+            type="button"
+            className={`fav-pill${showFavorites ? " is-active" : ""}`}
+            onClick={() => setShowFavorites((v) => !v)}
+            aria-pressed={showFavorites}
+            title="Избранное"
+          >
+            <span className="fav-pill__star" aria-hidden="true">
+              {showFavorites ? "\u2605" : "\u2606"}
+            </span>
+            {favoriteSet.size > 0 && (
+              <span className="fav-pill__count">{favoriteSet.size}</span>
+            )}
+          </button>
+        </div>
+
+        <OccupancySummary />
+
+        {!isSearching && !showFavorites && (
+          <RecentActivity
+            onOpenBookings={() => onNavigate("bookings")}
+            onPickModel={(name) => { setQuery(name); setCategory("Все"); }}
+          />
+        )}
 
         <CategoryChips
           categories={categories}
@@ -360,13 +365,16 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
               <p className="empty__text">
                 {isSearching
                   ? `Ничего не найдено по запросу «${query.trim()}»`
-                  : `В категории «${category}» пока ничего нет`}
+                  : showFavorites
+                    ? "В избранном пока пусто"
+                    : `В категории «${category}» пока ничего нет`}
               </p>
               <button
                 type="button"
                 className="empty__action"
                 onClick={() => {
                   if (isSearching) setQuery("");
+                  else if (showFavorites) setShowFavorites(false);
                   else setCategory("Все");
                 }}
               >
@@ -399,17 +407,8 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
                     onToggleSelect={toggleSelect}
                     favorite={favoriteSet.has(item.modelId)}
                     onToggleFavorite={() => toggleFavorite(item.modelId)}
+                    onOpenAliases={() => setTagsTarget(item)}
                   />
-                  <button
-                    type="button"
-                    className="catalog-item-tags"
-                    onClick={() => setTagsTarget(item)}
-                    title="Альтернативные названия"
-                  >
-                    {(item.aliases?.length ?? 0) > 0
-                      ? `# ${(item.aliases ?? []).slice(0, 3).join(", ")}${(item.aliases?.length ?? 0) > 3 ? "…" : ""}`
-                      : "+ альтернативные названия"}
-                  </button>
                 </div>
               );
             })}

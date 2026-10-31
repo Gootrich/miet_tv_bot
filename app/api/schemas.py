@@ -165,6 +165,7 @@ class BookingOut(BaseModel):
     model_short_name: str | None = None
     category_name: str | None = None
     item_inventory_number: str | None = None
+    user_clubs: list[str] = []
 
     @classmethod
     def from_orm_booking(cls, booking) -> "BookingOut":
@@ -187,6 +188,13 @@ class BookingOut(BaseModel):
             if category is not None:
                 category_name = category.name
 
+        user_clubs: list[str] = []
+        if user is not None:
+            for ur in getattr(user, "roles", None) or []:
+                role = getattr(ur, "role", None)
+                if role is not None and role.code in ("photographer", "videographer"):
+                    user_clubs.append(role.code)
+
         return cls(
             id=booking.id,
             item_id=booking.item_id,
@@ -198,6 +206,7 @@ class BookingOut(BaseModel):
             actual_checkout=booking.actual_checkout,
             actual_return=booking.actual_return,
             status=booking.status,
+            user_clubs=user_clubs,
             comment=booking.comment,
             created_at=booking.created_at,
             group_id=booking.group_id,

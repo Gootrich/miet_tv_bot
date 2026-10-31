@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BottomNav } from "../components/BottomNav";
 import { MultiSelectDropdown } from "../components/MultiSelectDropdown";
 import { OccupancyTimeline } from "../components/OccupancyTimeline";
@@ -9,6 +9,7 @@ import {
 } from "../api/catalog";
 import { fetchOccupancy } from "../api/occupancy";
 import { useCachedData } from "../api/useCachedData";
+import { load } from "../api/cache";
 import {
   addDays,
   formatDayMonth,
@@ -95,8 +96,31 @@ export function OccupancyPage({
   const occ = useCachedData(
     cacheKey,
     () => fetchOccupancy(fromMs, toMs),
-    OCC_TTL,
+    { ttlMs: OCC_TTL, keepPrevious: true },
   );
+
+  // Prefetch соседних окон [D-1, D+1] и [D+1, D+3] — с отменой при быстрой смене дня.
+  // Заполняет кэш заранее, чтобы нажатие «След/Пред» рендерилось мгновенно.
+  // load() дедуплицирует по ключу и не идёт в сеть, если запись свежая (ttl).
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const prevFrom = startOfDay(addDays(anchorDay, -1)).getTime();
+      const prevTo = startOfDay(addDays(anchorDay, 1)).getTime();
+      const nextFrom = startOfDay(addDays(anchorDay, 1)).getTime();
+      const nextTo = startOfDay(addDays(anchorDay, 3)).getTime();
+      load(
+        `occupancy:${prevFrom}:${prevTo}`,
+        () => fetchOccupancy(prevFrom, prevTo),
+        OCC_TTL,
+      ).catch(() => { /* ignore prefetch errors */ });
+      load(
+        `occupancy:${nextFrom}:${nextTo}`,
+        () => fetchOccupancy(nextFrom, nextTo),
+        OCC_TTL,
+      ).catch(() => { /* ignore prefetch errors */ });
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [anchorDay]);
 
   const cat = useCachedData("catalog", fetchCatalog);
   const categories: CategoryWithModelsOut[] = cat.data ?? [];
@@ -166,9 +190,20 @@ export function OccupancyPage({
     );
   }, [occ.data, visibleModelIds]);
 
-  const onPrev = () => setAnchorDay(addDays(anchorDay, -2));
-  const onNext = () => setAnchorDay(addDays(anchorDay, 2));
-  const onToday = () => setAnchorDay(startOfDay(new Date()));
+  const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
+  const slideTimer = useRef<number | null>(null);
+  const triggerSlide = (dir: "left" | "right") => {
+    if (slideTimer.current != null) window.clearTimeout(slideTimer.current);
+    setSlideDir(dir);
+    slideTimer.current = window.setTimeout(() => setSlideDir(null), 220);
+  };
+  useEffect(() => () => {
+    if (slideTimer.current != null) window.clearTimeout(slideTimer.current);
+  }, []);
+
+  const onPrev = () => { triggerSlide("left"); setAnchorDay(addDays(anchorDay, -1)); };
+  const onNext = () => { triggerSlide("right"); setAnchorDay(addDays(anchorDay, 1)); };
+  const onToday = () => { setSlideDir(null); setAnchorDay(startOfDay(new Date())); };
 
   const onSelectEmpty = (day: Date, hour: number) => {
     const start = new Date(day);
@@ -298,16 +333,26 @@ export function OccupancyPage({
         )}
 
         {!occ.error && (
-          <OccupancyTimeline
-            day1={day1}
-            day2={day2}
-            bookings={filteredBookings}
-            categoryCodeByName={categoryCodeByName}
-            shortNameByModelId={shortNameByModelId}
-            viewMode={viewMode}
-            onSelectEmpty={onSelectEmpty}
-            onNavigate={onNavigate}
-          />
+          <div
+            className="occ-slide-wrap"
+            data-dir={slideDir ?? "none"}
+            key={anchorDay.getTime()}
+          >
+            {occ.data === undefined ? (
+              <OccSkeleton />
+            ) : (
+              <OccupancyTimeline
+                day1={day1}
+                day2={day2}
+                bookings={filteredBookings}
+                categoryCodeByName={categoryCodeByName}
+                shortNameByModelId={shortNameByModelId}
+                viewMode={viewMode}
+                onSelectEmpty={onSelectEmpty}
+                onNavigate={onNavigate}
+              />
+            )}
+          </div>
         )}
 
         <OccupancyStats bookings={filteredBookings} />
@@ -347,6 +392,17 @@ export function OccupancyPage({
       )}
 
       <BottomNav active="occupancy" onSelect={onNavigate} />
+    </div>
+  );
+}
+
+function OccSkeleton() {
+  return (
+    <div className="occ-skeleton" aria-busy="true" aria-label="Загрузка занятости">
+      <div className="occ-skeleton__head" />
+      <div className="occ-skeleton__row" />
+      <div className="occ-skeleton__row" />
+      <div className="occ-skeleton__row" />
     </div>
   );
 }

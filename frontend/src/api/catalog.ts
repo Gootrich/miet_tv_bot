@@ -225,6 +225,7 @@ export interface BookingOut {
   model_short_name: string | null;
   category_name: string | null;
   item_inventory_number: string | null;
+  user_clubs: string[];
 }
 
 export interface BookingHistoryOut {
