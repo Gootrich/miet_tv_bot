@@ -54,6 +54,7 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: var(--md-space-4);
+  padding-top: calc(8px + env(safe-area-inset-top, 0px));
 }
 
 .page__content--with-fab {
@@ -64,62 +65,6 @@ textarea {
 }
 
 /* ---------- top bar ---------- */
-.top-bar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 8px;
-  background: var(--md-sys-color-surface);
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-  transition: transform 200ms ease;
-  will-change: transform;
-}
-.top-bar.is-hidden { transform: translateY(-100%); }
-@media (prefers-reduced-motion: reduce) {
-  .top-bar { transition: none; }
-}
-.top-bar__inner {
-  position: relative;
-  max-width: 480px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 32px;
-  gap: 8px;
-}
-.top-bar__title {
-  margin: 0;
-  z-index: 1;
-  max-width: 40%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font: 600 16px/1.25 var(--md-font-body);
-  color: var(--md-sys-color-on-surface);
-  letter-spacing: -0.01em;
-}
-.top-bar__brand {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--md-sys-color-primary);
-  line-height: 1;
-}
-.top-bar__clock {
-  z-index: 1;
-  flex: 0 0 auto;
-  font: 600 16px/1.25 var(--md-font-body);
-  color: var(--md-sys-color-on-surface);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
 
 /* ---------- search ---------- */
 
@@ -579,7 +524,7 @@ textarea {
   border-radius: 24px;
   background: var(--md-sys-color-surface-container);
   border: 1px solid var(--md-sys-color-outline-variant);
-  box-shadow: var(--md-elevation-2);
+  box-shadow: var(--md-elevation-1);
 }
 
 .bottom-nav__item {
@@ -604,8 +549,8 @@ textarea {
 .bottom-nav__pill {
   display: grid;
   place-items: center;
-  width: 56px;
-  height: 28px;
+  width: 48px;
+  height: 26px;
   border-radius: var(--md-shape-corner-full);
   transition: background-color 140ms ease;
 }
@@ -3096,4 +3041,1226 @@ option:checked {
 .admin-section > .section-title {
   margin: 0;
   font: var(--md-type-title-medium);
+}
+
+
+/* ---------- Occupancy 2-day vertical timeline (этап 2) ---------- */
+
+.occ-tl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--md-space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--md-space-3);
+}
+
+.occ-tl {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-corner-md);
+  overflow: hidden;
+  background: var(--md-sys-color-surface-container);
+}
+
+.occ-tl__days-head {
+  display: grid;
+  grid-template-columns: 56px 1fr 1fr;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.occ-tl__hours-head { }
+
+.occ-tl__day-head {
+  padding: var(--md-space-2) var(--md-space-3);
+  text-align: center;
+  border-left: 1px solid var(--md-sys-color-outline-variant);
+}
+.occ-tl__day-wd {
+  font: var(--md-type-label-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: uppercase;
+}
+.occ-tl__day-date { font: var(--md-type-title-small); }
+
+.occ-tl__body {
+  display: grid;
+  grid-template-columns: 56px 1fr 1fr;
+  max-height: 72vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.occ-tl__hours { position: relative; }
+.occ-tl__hour-label {
+  position: absolute;
+  right: var(--md-space-2);
+  transform: translateY(-50%);
+  font: var(--md-type-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  pointer-events: none;
+}
+.occ-tl__hour-label:first-child { transform: none; }
+
+.occ-tl__day {
+  position: relative;
+  border-left: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.occ-tl__hour-cell {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border: none;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.occ-tl__blocks {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.occ-tl__hour-cell:hover {
+  background: var(--md-sys-color-surface-container-low);
+}
+.occ-tl__hour-cell:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+}
+
+.occ-tl-block {
+  position: absolute;
+  border: none;
+  border-left: 3px solid hsl(var(--user-h, 200), 60%, 45%);
+  background: hsl(var(--user-h, 200), 70%, 92%);
+  color: hsl(var(--user-h, 200), 40%, 22%);
+  border-radius: var(--md-shape-corner-sm);
+  padding: 2px 4px;
+  font: var(--md-type-label-small);
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-height: 18px;
+  z-index: 2;
+  box-sizing: border-box;
+}
+.occ-tl-block {
+  pointer-events: auto;
+}
+.occ-tl-block:hover { filter: brightness(0.96); }
+.occ-tl-block:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 1px;
+}
+
+[data-theme="dark"] .occ-tl-block {
+  background: hsla(var(--user-h, 200), 40%, 25%, 0.9);
+  color: hsl(var(--user-h, 200), 40%, 88%);
+  border-left-color: hsl(var(--user-h, 200), 50%, 55%);
+}
+
+.occ-tl-block__time { font-weight: 600; font-size: 10px; line-height: 1.1; }
+.occ-tl-block__user {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.occ-tl-block__items {
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.occ-tl-block__more { opacity: 0.7; font-size: 10px; }
+
+.occ-tl-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--md-space-2);
+  margin-top: var(--md-space-3);
+}
+.occ-tl-stats__item {
+  background: var(--md-sys-color-surface-container-low);
+  border-radius: var(--md-shape-corner-md);
+  padding: var(--md-space-2) var(--md-space-3);
+  text-align: center;
+}
+.occ-tl-stats__value { font: var(--md-type-title-large); }
+.occ-tl-stats__label {
+  font: var(--md-type-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.occ-tl-details { display: flex; flex-direction: column; gap: var(--md-space-2); }
+.occ-tl-details__row {
+  display: flex;
+  gap: var(--md-space-2);
+  font: var(--md-type-body-medium);
+}
+.occ-tl-details__label {
+  color: var(--md-sys-color-on-surface-variant);
+  min-width: 80px;
+}
+.occ-tl-details__items { margin: 0; padding-left: var(--md-space-4); }
+.occ-tl-details__items li { font: var(--md-type-body-medium); padding: 2px 0; }
+.occ-tl-details__cat { color: var(--md-sys-color-on-surface-variant); }
+.occ-tl-details__qty {
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-type-label-medium);
+}
+
+.occ-tl-details__actions {
+  margin-top: var(--md-space-3);
+  display: flex;
+  justify-content: flex-end;
+}
+
+
+/* --- Этап 3: индикатор периода в каталоге --- */
+.period-indicator {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: rgba(0, 200, 180, 0.08);
+  border: 1px solid rgba(0, 200, 180, 0.28);
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--fg, #e6e8eb);
+}
+.period-indicator--empty {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(230, 232, 235, 0.65);
+  font: inherit;
+}
+.period-indicator__label { font-weight: 500; }
+.period-indicator__hint {
+  flex-basis: 100%;
+  color: rgba(230, 232, 235, 0.65);
+  font-size: 12px;
+}
+.period-indicator__actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+.period-indicator__btn {
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 200, 180, 0.4);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.period-indicator__btn--muted {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(230, 232, 235, 0.65);
+}
+
+/* --- Этап 3: обёртка карточки с бейджем доступности --- */
+.catalog-item-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.catalog-item-wrapper__badge {
+  align-self: flex-start;
+  margin: 0 0 -4px 6px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(255, 87, 87, 0.14);
+  color: #ff8a8a;
+  border: 1px solid rgba(255, 87, 87, 0.32);
+  position: relative;
+  z-index: 1;
+}
+
+/* --- Этап 3: корзина: удаление и предупреждения --- */
+.batch-list__qty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.batch-list__remove {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 87, 87, 0.32);
+  background: transparent;
+  color: #ff8a8a;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.batch-list__remove:hover { background: rgba(255, 87, 87, 0.1); }
+.batch-list__warn {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #ff8a8a;
+}
+
+/* --- Этап 3.1: индикатор периода (компактный, M3-подобный) --- */
+.period-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  margin-bottom: 10px;
+  background: rgba(0, 200, 180, 0.08);
+  border: 1px solid rgba(0, 200, 180, 0.25);
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--fg, #e6e8eb);
+  min-height: 36px;
+}
+.period-indicator__main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.period-indicator__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(0, 200, 180, 0.9);
+  flex-shrink: 0;
+}
+.period-indicator__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}
+.period-indicator__actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.period-indicator__btn {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0, 200, 180, 0.14);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.period-indicator__btn:hover { background: rgba(0, 200, 180, 0.22); }
+.period-indicator__btn--icon {
+  width: 28px;
+  padding: 0;
+  height: 28px;
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(230, 232, 235, 0.65);
+  background: transparent;
+}
+.period-indicator__btn--icon:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(230, 232, 235, 0.95);
+}
+.period-indicator--empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: transparent;
+  color: rgba(230, 232, 235, 0.55);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.period-indicator--empty:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(0, 200, 180, 0.3);
+}
+.period-indicator--empty .period-indicator__icon {
+  color: rgba(230, 232, 235, 0.45);
+}
+.period-indicator__empty-text {
+  flex: 1;
+  min-width: 0;
+}
+.period-indicator__empty-arrow {
+  color: rgba(0, 200, 180, 0.7);
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* --- Этап 3.2: бейдж «занято» на карточке, M3 tonal --- */
+.catalog-item-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.catalog-item-wrapper__badge {
+  align-self: flex-start;
+  margin: 0 0 -2px 12px;
+  padding: 2px 9px 3px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.15px;
+  background: rgba(255, 138, 100, 0.12);
+  color: #ffb59d;
+  position: relative;
+  z-index: 1;
+}
+
+/* --- Этап 3.3: fab-bar, минималистичный --- */
+.fab-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fab-bar__info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.fab-bar__count {
+  flex-shrink: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.fab-bar__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: rgba(230, 232, 235, 0.65);
+  font-variant-numeric: tabular-nums;
+}
+.fab-bar__clear,
+.fab-bar__cta {
+  flex-shrink: 0;
+}
+
+/* --- Этап 3.2: баннер «занято на выбранный период» --- */
+.period-avail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 4px 4px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+.period-avail--busy {
+  background: rgba(255, 138, 100, 0.08);
+  border: 1px solid rgba(255, 138, 100, 0.22);
+  color: #ffb59d;
+}
+.period-avail__label {
+  font-weight: 500;
+}
+.period-avail__action {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 138, 100, 0.16);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  white-space: nowrap;
+}
+.period-avail__action:hover:not(:disabled) {
+  background: rgba(255, 138, 100, 0.26);
+}
+.period-avail__action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.period-avail__action--suggest {
+  background: rgba(0, 200, 180, 0.14);
+  color: #a9f0e2;
+}
+.period-avail__action--suggest:hover {
+  background: rgba(0, 200, 180, 0.24);
+}
+.period-avail__hint {
+  margin-left: auto;
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+/* --- Этап 4: альтернативные названия --- */
+.catalog-item-tags {
+  align-self: flex-start;
+  margin: 2px 4px 0;
+  padding: 2px 8px;
+  border: none;
+  background: transparent;
+  color: rgba(0, 200, 180, 0.85);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  border-radius: 6px;
+  text-align: left;
+}
+.catalog-item-tags:hover { background: rgba(0, 200, 180, 0.08); }
+
+.aliases {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.aliases__hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: rgba(230, 232, 235, 0.6);
+  line-height: 1.35;
+}
+.aliases__loading,
+.aliases__empty {
+  font-size: 13px;
+  color: rgba(230, 232, 235, 0.55);
+  padding: 10px 0;
+}
+.aliases__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.aliases__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px 4px 10px;
+  background: rgba(0, 200, 180, 0.10);
+  border: 1px solid rgba(0, 200, 180, 0.28);
+  border-radius: 999px;
+  font-size: 12.5px;
+}
+.aliases__value {
+  color: #d9f5f0;
+}
+.aliases__remove {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: rgba(230, 232, 235, 0.55);
+  font-size: 15px;
+  line-height: 1;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.aliases__remove:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffb59d;
+}
+.aliases__add {
+  display: flex;
+  gap: 8px;
+}
+.aliases__input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+.aliases__input:focus {
+  outline: none;
+  border-color: rgba(0, 200, 180, 0.5);
+}
+.aliases__btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(0, 200, 180, 0.2);
+  color: #d9f5f0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.aliases__btn:hover:not(:disabled) {
+  background: rgba(0, 200, 180, 0.3);
+}
+.aliases__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* --- Stage 4b: короткое название модели в каталоге и админке --- */
+.row-head__short {
+  display: inline-block;
+  align-self: flex-start;
+  margin-top: 1px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: rgba(0, 200, 180, 0.10);
+  color: rgba(210, 245, 240, 0.9);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  line-height: 1.4;
+}
+.card__title-short {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: rgba(0, 200, 180, 0.10);
+  color: rgba(210, 245, 240, 0.85);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  vertical-align: middle;
+}
+
+/* ============================================================
+   Stage 5: Horizontal ribbon timeline (desktop)
+   + Chronological list (mobile)
+   ============================================================ */
+
+.occ-ribbon {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.occ-ribbon__day {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-corner-md);
+  background: var(--md-sys-color-surface-container);
+  overflow: hidden;
+}
+
+.occ-ribbon__day-head {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  min-height: 40px;
+}
+
+.occ-ribbon__day-label {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 10px;
+  width: 120px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.occ-ribbon__day-wd {
+  font: var(--md-type-label-small);
+  text-transform: uppercase;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.occ-ribbon__day-date {
+  font: var(--md-type-title-small);
+  line-height: 1.2;
+}
+
+.occ-ribbon__hours {
+  position: relative;
+  flex: 1;
+  min-height: 40px;
+}
+
+.occ-ribbon__hour-label {
+  position: absolute;
+  bottom: 6px;
+  transform: translateX(-50%);
+  font: var(--md-type-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.occ-ribbon__body {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  gap: 4px;
+}
+
+.occ-ribbon__empty {
+  padding: 14px 16px;
+  font: var(--md-type-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.occ-ribbon__row {
+  display: flex;
+  align-items: stretch;
+  min-height: 34px;
+}
+
+.occ-ribbon__user {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  width: 120px;
+  flex-shrink: 0;
+  font: var(--md-type-label-medium);
+  color: var(--md-sys-color-on-surface);
+  overflow: hidden;
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.occ-ribbon__user-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.occ-ribbon__user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.occ-ribbon__track {
+  position: relative;
+  flex: 1;
+  min-height: 34px;
+}
+
+.occ-ribbon__hour-cell {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: none;
+  border-left: 1px solid var(--md-sys-color-outline-variant);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  z-index: 0;
+}
+
+.occ-ribbon__hour-cell:last-child {
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.occ-ribbon__hour-cell:hover {
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.occ-ribbon__hour-cell:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+  z-index: 3;
+}
+
+.occ-ribbon__bar {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border: none;
+  border-left: 3px solid hsl(var(--user-h, 200), 65%, 52%);
+  border-radius: 6px;
+  background: hsla(var(--user-h, 200), 65%, 55%, 0.22);
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-type-label-small);
+  padding: 0 6px;
+  text-align: left;
+  cursor: pointer;
+  z-index: 2;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  container-type: inline-size;
+  transition: background-color 120ms ease;
+}
+
+.occ-ribbon__bar:hover {
+  background: hsla(var(--user-h, 200), 65%, 55%, 0.32);
+}
+
+.occ-ribbon__bar:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 1px;
+}
+
+.occ-ribbon__bar-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.occ-ribbon__bar-arrow {
+  flex-shrink: 0;
+  opacity: 0.7;
+  font-size: 13px;
+  line-height: 1;
+}
+
+@container (max-width: 60px) {
+  .occ-ribbon__bar { padding: 0 4px; }
+  .occ-ribbon__bar-text {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .occ-ribbon__bar-arrow { display: none; }
+}
+
+@container (max-width: 32px) {
+  .occ-ribbon__bar-text { display: none; }
+  .occ-ribbon__bar { padding: 0 2px; justify-content: center; }
+}
+
+[data-theme="dark"] .occ-ribbon__bar {
+  background: hsla(var(--user-h, 200), 55%, 55%, 0.28);
+  color: hsl(var(--user-h, 200), 30%, 92%);
+  border-left-color: hsl(var(--user-h, 200), 65%, 62%);
+}
+
+[data-theme="dark"] .occ-ribbon__bar:hover {
+  background: hsla(var(--user-h, 200), 55%, 55%, 0.4);
+}
+
+[data-theme="light"] .occ-ribbon__bar {
+  background: hsla(var(--user-h, 200), 65%, 55%, 0.32);
+  color: hsl(var(--user-h, 200), 55%, 22%);
+  border-left-color: hsl(var(--user-h, 200), 65%, 45%);
+}
+
+[data-theme="light"] .occ-ribbon__bar:hover {
+  background: hsla(var(--user-h, 200), 65%, 55%, 0.45);
+}
+
+@media (max-width: 560px) {
+  .occ-ribbon__day-label,
+  .occ-ribbon__user {
+    width: 84px;
+    padding: 4px 8px;
+  }
+  .occ-ribbon__user-dot {
+    width: 6px;
+    height: 6px;
+  }
+  .occ-ribbon__user-name {
+    font: var(--md-type-label-small);
+  }
+  .occ-ribbon__bar-text {
+    font: var(--md-type-label-small);
+  }
+  .occ-ribbon__row {
+    min-height: 32px;
+  }
+}
+
+/* ---------- Mobile chronological list ---------- */
+
+.occ-chrono {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.occ-chrono__empty {
+  padding: 16px;
+  font: var(--md-type-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  text-align: center;
+}
+
+.occ-chrono__item {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--md-sys-color-surface-container);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-corner-md);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.occ-chrono__item:hover {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.occ-chrono__color {
+  width: 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.occ-chrono__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.occ-chrono__time {
+  font: var(--md-type-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+
+.occ-chrono__user {
+  font: var(--md-type-title-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.occ-chrono__text {
+  font: var(--md-type-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Stage 5.1: переключатель вида --- */
+.occ-view-toggle {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--md-sys-color-surface-container-high, rgba(255,255,255,0.06));
+  border: 1px solid var(--md-sys-color-outline-variant, rgba(255,255,255,0.12));
+}
+.occ-view-toggle__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant, rgba(230,232,235,0.6));
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.occ-view-toggle__btn:hover {
+  background: rgba(255,255,255,0.05);
+  color: var(--md-sys-color-on-surface, #e6e8eb);
+}
+.occ-view-toggle__btn.is-active {
+  background: rgba(0, 200, 180, 0.16);
+  color: #d9f5f0;
+}
+
+/* --- Stage 5.2: узкие экраны — ribbon со скроллом, sticky user-колонка --- */
+@media (max-width: 720px) {
+  .occ-ribbon__day {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+  }
+  .occ-ribbon__day-head,
+  .occ-ribbon__body {
+    min-width: 620px;
+  }
+  .occ-ribbon__day-label,
+  .occ-ribbon__user {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    width: 84px;
+    padding: 6px 8px;
+  }
+  .occ-ribbon__day-label {
+    background: var(--md-sys-color-surface-container-low, #1a1d21);
+  }
+  .occ-ribbon__user {
+    background: var(--md-sys-color-surface-container, #20242a);
+    gap: 4px;
+    padding: 0 8px;
+  }
+  .occ-ribbon__user-name {
+    font-size: 11px;
+    max-width: 56px;
+  }
+  .occ-ribbon__user-dot {
+    width: 6px;
+    height: 6px;
+  }
+}
+
+/* --- Stage 6: «свои» брони — акцентная полоса --- */
+.bookings-page .card.card--mine {
+  box-shadow: inset 3px 0 0 0 var(--md-sys-color-primary, #00c8b4);
+}
+
+/* === Occupancy summary (главный экран / каталог) === */
+.occupancy-summary {
+  margin-bottom: 10px;
+  background: var(--md-sys-color-surface-container-low);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--md-sys-color-on-surface);
+  overflow: hidden;
+}
+.occupancy-summary__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.occupancy-summary__head:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+.occupancy-summary__item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.occupancy-summary__num {
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+}
+.occupancy-summary__label {
+  color: var(--md-sys-color-on-surface-variant);
+}
+.occupancy-summary__sep {
+  color: var(--md-sys-color-outline-variant);
+}
+.occupancy-summary__chevron {
+  margin-left: auto;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 11px;
+}
+.occupancy-summary__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.occupancy-summary__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+.occupancy-summary__row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.occupancy-summary__row-time {
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+}
+.occupancy-summary__row--more {
+  justify-content: center;
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+}
+
+/* === Recent activity (главный экран / каталог) === */
+.recent-activity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+.recent-activity__chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recent-activity__chip:active {
+  background: var(--md-sys-color-surface-container);
+}
+.recent-activity__chip--latest {
+  border-color: color-mix(in srgb, var(--md-sys-color-primary) 30%, var(--md-sys-color-outline-variant));
+  background: color-mix(in srgb, var(--md-sys-color-primary) 8%, var(--md-sys-color-surface-container-low));
+}
+.recent-activity__chip-label {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 11px;
+}
+.recent-activity__chip-value {
+  font-weight: 500;
+}
+.recent-activity__chips {
+  display: inline-flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  max-width: 100%;
+}
+.recent-activity__chips::-webkit-scrollbar {
+  display: none;
+}
+
+/* === Favorites === */
+.row-head__fav {
+  flex-shrink: 0;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--md-sys-color-on-surface-variant);
+  padding: 2px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+.row-head__fav.is-active {
+  color: #ffc847;
+}
+.row-head__fav:active {
+  transform: scale(0.9);
+}
+
+.fav-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin-bottom: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.fav-filter.is-active {
+  border-color: color-mix(in srgb, #ffc847 50%, var(--md-sys-color-outline-variant));
+  background: color-mix(in srgb, #ffc847 8%, var(--md-sys-color-surface-container-low));
+}
+.fav-filter__star {
+  color: #ffc847;
+  font-size: 14px;
+  line-height: 1;
+}
+.fav-filter__count {
+  font-size: 11px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* === Bookings page (раздел 12) === */
+.card--mine {
+  border-left: 3px solid var(--md-sys-color-primary);
+}
+.card__heading-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.badge--mine {
+  background: color-mix(in srgb, var(--md-sys-color-primary) 12%, var(--md-sys-color-surface-container-low));
+  color: var(--md-sys-color-primary);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 32%, var(--md-sys-color-outline-variant));
+}
+
+/* === Performance: reduced-motion === */
+@media (prefers-reduced-motion: reduce) {
+  .occupancy-summary__head,
+  .recent-activity__chip,
+  .fav-filter,
+  .row-head__fav {
+    transition: none;
+  }
+  .row-head__fav:active {
+    transform: none;
+  }
 }

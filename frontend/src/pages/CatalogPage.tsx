@@ -1,16 +1,25 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { BottomNav } from "../components/BottomNav";
 import { CategoryChips } from "../components/CategoryChips";
 import { EquipmentCard } from "../components/EquipmentCard";
 import { BatchBookingModal } from "../components/BatchBookingModal";
 import { IconAlert, IconSearch } from "../components/Icons";
-import { TopBar } from "../components/TopBar";
 import {
   categoryNames,
   fetchCatalog,
+  fetchModelAvailability,
   toCatalogItems,
   type CatalogItem,
+  type ModelAvailability,
 } from "../api/catalog";
+import { useCachedData } from "../api/useCachedData";
+import { invalidate } from "../api/cache";
+import { cartClear, cartSetRange, cartToggle, useCart } from "../state/cart";
+import type { DTRange } from "../components/DateTimeRangePicker";
+import { ModelAliasesModal } from "../components/ModelAliasesModal";
+import { OccupancySummary } from "../components/OccupancySummary";
+import { fetchFavorites, addFavorite, removeFavorite } from "../api/favorites";
+import { RecentActivity } from "../components/RecentActivity";
 
 type LoadState =
   | { kind: "loading" }
@@ -20,45 +29,165 @@ type LoadState =
 function matches(item: CatalogItem, q: string): boolean {
   if (!q) return true;
   const needle = q.toLowerCase();
+  if (item.title.toLowerCase().includes(needle)) return true;
+  if (item.subtitle.toLowerCase().includes(needle)) return true;
+  if (item.category.toLowerCase().includes(needle)) return true;
+  if (item.shortName && item.shortName.toLowerCase().includes(needle)) return true;
+  for (const a of (item.aliases ?? [])) {
+    if (a.toLowerCase().includes(needle)) return true;
+  }
+  return false;
+}
+
+function formatRangeShort(r: DTRange): string {
+  if (!r.start || !r.end) return "";
+  const s = new Date(r.start);
+  const e = new Date(r.end);
+  const sameDay = s.toDateString() === e.toDateString();
+  const st = s.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const et = e.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  if (sameDay) {
+    const date = s.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+    return `${date}, ${st}\u2013${et}`;
+  }
+  const sd = s.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  const ed = e.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  return `${sd} ${st} \u2192 ${ed} ${et}`;
+}
+
+function formatTimeOnly(r: DTRange): string {
+  if (!r.start || !r.end) return "";
+  const s = new Date(r.start);
+  const e = new Date(r.end);
+  const st = s.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const et = e.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  return `${st}\u2013${et}`;
+}
+
+function ClockIcon() {
   return (
-    item.title.toLowerCase().includes(needle) ||
-    item.subtitle.toLowerCase().includes(needle) ||
-    item.category.toLowerCase().includes(needle)
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+/**
+ * Баннер над карточкой модели, которая занята на выбранный период.
+ * Позволяет одним действием найти ближайший подходящий слот
+ * (через backend /catalog/models/{id}/availability) и применить его.
+ */
+function PeriodBusyBanner({
+  item,
+  onApplyNearest,
+}: {
+  item: CatalogItem;
+  onApplyNearest: (start: string, end: string) => void;
+}) {
+  const cart = useCart();
+  const [nearest, setNearest] = useState<ModelAvailability | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
+
+  const range = cart.range;
+  const qty = cart.items.get(item.modelId) ?? 1;
+
+  const handleSearch = async () => {
+    if (!range.start || !range.end) return;
+    setLoading(true);
+    try {
+      const r = await fetchModelAvailability(
+        item.modelId,
+        range.start,
+        range.end,
+        qty,
+      );
+      setNearest(r);
+    } catch {
+      setNearest(null);
+    } finally {
+      setLoading(false);
+      setSearched(true);
+    }
+  };
+
+  const fmt = (() => {
+    if (!nearest?.next_available_start || !nearest?.next_available_end) return null;
+    const s = new Date(nearest.next_available_start);
+    const e = new Date(nearest.next_available_end);
+    const sd = s.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+    const st = s.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+    const et = e.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+    const sameDay = s.toDateString() === e.toDateString();
+    return {
+      text: sameDay ? `${sd}, ${st}\u2013${et}` : `${sd} ${st} \u2192 ${et}`,
+      start: nearest.next_available_start,
+      end: nearest.next_available_end,
+    };
+  })();
+
+  return (
+    <div className="period-avail period-avail--busy" role="status">
+      <span className="period-avail__label">Занято на выбранный период</span>
+      {!searched && (
+        <button
+          type="button"
+          className="period-avail__action"
+          onClick={handleSearch}
+          disabled={loading}
+        >
+          {loading ? "Поиск…" : "Найти ближайшее"}
+        </button>
+      )}
+      {searched && fmt && (
+        <button
+          type="button"
+          className="period-avail__action period-avail__action--suggest"
+          onClick={() => onApplyNearest(fmt.start, fmt.end)}
+        >
+          Ближайшее: {fmt.text} →
+        </button>
+      )}
+      {searched && !fmt && !loading && (
+        <span className="period-avail__hint">Нет свободного слота</span>
+      )}
+    </div>
   );
 }
 
 export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void }) {
-  const [state, setState] = useState<LoadState>({ kind: "loading" });
+  const cart = useCart();
+
+  const rangeActive = !!(cart.range.start && cart.range.end);
+  // При пустом range используем ключ "catalog" — он же в App.tsx preload,
+  // поэтому данные попадают из кэша без повторного запроса.
+  const cacheKey = rangeActive
+    ? `catalog:${cart.range.start}|${cart.range.end}`
+    : "catalog";
+
+  const cat = useCachedData(
+    cacheKey,
+    () => fetchCatalog(cart.range.start, cart.range.end),
+    { keepPrevious: true },
+  );
+
+  const state: LoadState = useMemo<LoadState>(() => {
+    if (cat.error && !cat.data) return { kind: "error", message: cat.error.message };
+    if (!cat.data) return { kind: "loading" };
+    return {
+      kind: "ready",
+      items: toCatalogItems(cat.data),
+      categories: categoryNames(cat.data),
+    };
+  }, [cat.data, cat.error]);
+
   const [category, setCategory] = useState<string>("Все");
   const [query, setQuery] = useState<string>("");
-
-  // Мультивыбор: Map<model_id, quantity>
-  const [selected, setSelected] = useState<Map<number, number>>(() => new Map());
   const [batchOpen, setBatchOpen] = useState(false);
+  const [tagsTarget, setTagsTarget] = useState<CatalogItem | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const data = await fetchCatalog();
-        if (cancelled) return;
-        setState({
-          kind: "ready",
-          items: toCatalogItems(data),
-          categories: categoryNames(data),
-        });
-      } catch (error) {
-        if (cancelled) return;
-        setState({
-          kind: "error",
-          message: error instanceof Error ? error.message : "Неизвестная ошибка",
-        });
-      }
-    }
-    void load();
-    return () => { cancelled = true; };
-  }, []);
-
+  const selectedCount = cart.items.size;
   const categories = state.kind === "ready" ? state.categories : ["Все"];
 
   const visible = useMemo(() => {
@@ -72,39 +201,94 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
   const totalCount = state.kind === "ready" ? state.items.length : 0;
   const isSearching = query.trim().length > 0;
 
-  // --- выбор ---
   const toggleSelect = (item: CatalogItem) => {
-    setSelected((prev) => {
-      const next = new Map(prev);
-      if (next.has(item.modelId)) next.delete(item.modelId);
-      else next.set(item.modelId, 1);
-      return next;
-    });
+    cartToggle(item.modelId);
   };
-
-  const clearSelection = () => setSelected(new Map());
 
   const selectedItems: Array<{ item: CatalogItem; quantity: number }> = useMemo(() => {
     if (state.kind !== "ready") return [];
     const byId = new Map(state.items.map((i) => [i.modelId, i]));
     const out: Array<{ item: CatalogItem; quantity: number }> = [];
-    for (const [mid, q] of selected.entries()) {
+    for (const [mid, q] of cart.items.entries()) {
       const it = byId.get(mid);
       if (it) out.push({ item: it, quantity: q });
     }
     return out;
-  }, [state, selected]);
+  }, [state, cart.items]);
 
   const onBatchSuccess = () => {
     setBatchOpen(false);
-    setSelected(new Map());
+    cartClear();
+    invalidate("catalog");
+    invalidate("occupancy");
     onNavigate("bookings");
+  };
+
+
+  const { data: favoriteIds = [] } = useCachedData<number[]>(
+    "favorites:mine",
+    fetchFavorites,
+    60_000,
+  );
+  const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
+  const [showFavorites, setShowFavorites] = useState(false);
+  const toggleFavorite = async (modelId: number) => {
+    try {
+      if (favoriteSet.has(modelId)) await removeFavorite(modelId);
+      else await addFavorite(modelId);
+      invalidate("favorites:mine");
+    } catch {
+      /* silent */
+    }
   };
 
   return (
     <div className="page">
-      <TopBar />
-      <main className={`page__content${selected.size > 0 ? " page__content--with-fab" : ""}`}>
+      <main className={`page__content${selectedCount > 0 ? " page__content--with-fab" : ""}`}>
+
+        {rangeActive ? (
+          <div className="period-indicator" role="status" aria-label="Выбранный период">
+            <div className="period-indicator__main">
+              <span className="period-indicator__icon"><ClockIcon /></span>
+              <span className="period-indicator__text">{formatRangeShort(cart.range)}</span>
+            </div>
+            <div className="period-indicator__actions">
+              <button
+                type="button"
+                className="period-indicator__btn"
+                onClick={() => onNavigate("occupancy")}
+              >
+                Изменить
+              </button>
+              <button
+                type="button"
+                className="period-indicator__btn period-indicator__btn--icon"
+                onClick={() => cartSetRange({ start: null, end: null })}
+                aria-label="Сбросить период"
+                title="Сбросить"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="period-indicator period-indicator--empty"
+            onClick={() => onNavigate("occupancy")}
+          >
+            <span className="period-indicator__icon"><ClockIcon /></span>
+            <span className="period-indicator__empty-text">Укажите время — увидите доступность</span>
+            <span className="period-indicator__empty-arrow" aria-hidden="true">→</span>
+          </button>
+        )}
+
+        <OccupancySummary />
+        <RecentActivity
+          onOpenBookings={() => onNavigate("bookings")}
+          onPickModel={(name) => { setQuery(name); setCategory("Все"); }}
+        />
+
         <label className="search" aria-label="Поиск оборудования">
           <span className="search__icon" aria-hidden="true"><IconSearch size={18} /></span>
           <input
@@ -125,6 +309,21 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
           )}
         </label>
 
+        <button
+          type="button"
+          className={`fav-filter${showFavorites ? " is-active" : ""}`}
+          onClick={() => setShowFavorites((v) => !v)}
+          aria-pressed={showFavorites}
+        >
+          <span className="fav-filter__star" aria-hidden="true">
+            {showFavorites ? "\u2605" : "\u2606"}
+          </span>
+          <span>Избранное</span>
+          {favoriteSet.size > 0 && (
+            <span className="fav-filter__count">{favoriteSet.size}</span>
+          )}
+        </button>
+
         <CategoryChips
           categories={categories}
           selected={category}
@@ -134,7 +333,8 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
         <section className="list list--catalog" aria-label="Оборудование">
           {state.kind === "loading" && (
             <div className="empty">
-              <span className="spinner" aria-hidden="true" /><p className="empty__text">Загрузка каталога…</p>
+              <span className="spinner" aria-hidden="true" />
+              <p className="empty__text">Загрузка каталога…</p>
             </div>
           )}
 
@@ -154,7 +354,7 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
             </div>
           )}
 
-          {state.kind === "ready" && visible.length === 0 && (
+          {state.kind === "ready" && (showFavorites ? visible.filter((i) => favoriteSet.has(i.modelId)) : visible).length === 0 && (
             <div className="empty">
               <span className="empty__icon" aria-hidden="true"><IconSearch size={22} /></span>
               <p className="empty__text">
@@ -176,15 +376,43 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
           )}
 
           {state.kind === "ready" &&
-            visible.map((item) => (
-              <EquipmentCard
-                key={item.id}
-                item={item}
-                showCategory={category === "Все"}
-                selected={selected.has(item.modelId)}
-                onToggleSelect={toggleSelect}
-              />
-            ))}
+            (showFavorites ? visible.filter((i) => favoriteSet.has(i.modelId)) : visible).map((item) => {
+              const busyInPeriod =
+                rangeActive &&
+                item.availableInPeriod !== undefined &&
+                item.availableInPeriod !== null &&
+                item.availableInPeriod <= 0;
+              return (
+                <div key={item.id} className="catalog-item-wrapper">
+                  {busyInPeriod && (
+                    <PeriodBusyBanner
+                      item={item}
+                      onApplyNearest={(s, e) =>
+                        cartSetRange({ start: s, end: e })
+                      }
+                    />
+                  )}
+                  <EquipmentCard
+                    item={item}
+                    showCategory={category === "Все"}
+                    selected={cart.items.has(item.modelId)}
+                    onToggleSelect={toggleSelect}
+                    favorite={favoriteSet.has(item.modelId)}
+                    onToggleFavorite={() => toggleFavorite(item.modelId)}
+                  />
+                  <button
+                    type="button"
+                    className="catalog-item-tags"
+                    onClick={() => setTagsTarget(item)}
+                    title="Альтернативные названия"
+                  >
+                    {(item.aliases?.length ?? 0) > 0
+                      ? `# ${(item.aliases ?? []).slice(0, 3).join(", ")}${(item.aliases?.length ?? 0) > 3 ? "…" : ""}`
+                      : "+ альтернативные названия"}
+                  </button>
+                </div>
+              );
+            })}
         </section>
 
         <p className="mock-note">
@@ -192,20 +420,20 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
             ? `Найдено: ${visible.length} из ${totalCount}`
             : "Источник: API каталога."}
         </p>
-
       </main>
 
-      {/* Плавающая панель «N выбрано» */}
-      {selected.size > 0 && (
-        <div className="fab-bar" role="region" aria-label="Выбранные для пакетной брони">
+      {selectedCount > 0 && (
+        <div className="fab-bar" role="region" aria-label="Выбранные для брони">
           <div className="fab-bar__info">
-            <span className="fab-bar__count">{selected.size}</span>
-            <span className="fab-bar__label">выбрано</span>
+            <span className="fab-bar__count">{selectedCount}</span>
+            {rangeActive && (
+              <span className="fab-bar__label">{formatTimeOnly(cart.range)}</span>
+            )}
           </div>
           <button
             type="button"
             className="fab-bar__clear"
-            onClick={clearSelection}
+            onClick={() => cartClear()}
           >
             Очистить
           </button>
@@ -214,7 +442,7 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
             className="fab-bar__cta"
             onClick={() => setBatchOpen(true)}
           >
-            Забронировать выбранное
+            Забронировать
           </button>
         </div>
       )}
@@ -225,6 +453,15 @@ export function CatalogPage({ onNavigate }: { onNavigate: (tab: string) => void 
         onClose={() => setBatchOpen(false)}
         onSuccess={onBatchSuccess}
       />
+
+      {tagsTarget && (
+        <ModelAliasesModal
+          open={!!tagsTarget}
+          modelId={tagsTarget.modelId}
+          modelTitle={tagsTarget.shortName ?? tagsTarget.title}
+          onClose={() => setTagsTarget(null)}
+        />
+      )}
 
       <BottomNav active="catalog" onSelect={onNavigate} />
     </div>

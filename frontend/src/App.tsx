@@ -6,12 +6,13 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { DevUserSwitcher } from "./components/DevUserSwitcher";
 import { ToastProvider } from "./components/Toast";
 import { fetchCatalog } from "./api/catalog";
-import { fetchBookings } from "./api/bookings";
 import { fetchMe } from "./api/admin";
 import { load } from "./api/cache";
+import { useTabSwipe } from "./hooks/useTabSwipe";
 type Page = "catalog" | "occupancy" | "bookings" | "profile";
 const PAGE_STORAGE_KEY = "miet.page";
 const ALLOWED: Page[] = ["catalog", "occupancy", "bookings", "profile"];
+const TAB_ORDER: Page[] = ["catalog", "occupancy", "bookings", "profile"];
 function readStoredPage(): Page {
   try {
     const raw = localStorage.getItem(PAGE_STORAGE_KEY);
@@ -23,6 +24,12 @@ function readStoredPage(): Page {
 }
 export default function App() {
   const [page, setPage] = useState<Page>(() => readStoredPage());
+
+  useTabSwipe({
+    tabs: TAB_ORDER,
+    current: page,
+    onChange: (next) => setPage(next as Page),
+  });
   const isDev = import.meta.env.DEV;
   useEffect(() => {
     try {
@@ -41,11 +48,10 @@ export default function App() {
     let minTimePassed = false;
     let authDone = false;
     let catalogDone = false;
-    let bookingsDone = false;
     let finished = false;
     const finish = () => {
       if (finished) return;
-      if (!(minTimePassed && authDone && catalogDone && bookingsDone)) return;
+      if (!(minTimePassed && authDone && catalogDone)) return;
       finished = true;
       window.dispatchEvent(new CustomEvent("app:ready"));
     };
@@ -63,12 +69,8 @@ export default function App() {
         .then(() => { catalogDone = true; setStatus("Загрузка броней…"); })
         .catch(() => { catalogDone = true; setStatus("Загрузка броней…"); })
         .then(() => finish()),
-      fetchBookings({ scope: "mine", limit: 20 })
-        .then(() => { bookingsDone = true; setStatus("Почти готово…"); })
-        .catch(() => { bookingsDone = true; setStatus("Почти готово…"); })
-        .then(() => finish()),
     ]).catch(() => {
-      authDone = catalogDone = bookingsDone = true;
+      authDone = catalogDone = true;
       finish();
     });
     return () => window.clearTimeout(minTimer);

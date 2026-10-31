@@ -346,6 +346,7 @@ type ModelDraft = {
   id: number | null;
   category_id: number;
   name: string;
+  short_name: string;
   manufacturer: string;
   description: string;
   access_policy: AccessPolicy;
@@ -357,6 +358,7 @@ const emptyModel = (catId: number): ModelDraft => ({
   id: null,
   category_id: catId,
   name: "",
+  short_name: "",
   manufacturer: "",
   description: "",
   access_policy: "all",
@@ -406,6 +408,7 @@ function ModelsSection({
       id: m.id,
       category_id: m.category_id,
       name: m.name,
+      short_name: m.short_name ?? "",
       manufacturer: m.manufacturer ?? "",
       description: m.description ?? "",
       access_policy: m.access_policy,
@@ -421,6 +424,7 @@ function ModelsSection({
         await createModel({
           category_id: d.category_id,
           name: d.name,
+          short_name: d.short_name.trim() || null,
           manufacturer: d.manufacturer || null,
           description: d.description || null,
           access_policy: d.access_policy,
@@ -431,6 +435,7 @@ function ModelsSection({
         await updateModel(d.id, {
           category_id: d.category_id,
           name: d.name,
+          short_name: d.short_name.trim() || null,
           manufacturer: d.manufacturer || null,
           description: d.description || null,
           access_policy: d.access_policy,
@@ -498,7 +503,12 @@ function ModelsSection({
         return (
           <div className="card" key={m.id}>
             <div className="card__heading">
-              <h3 className="card__title">{m.name}</h3>
+              <h3 className="card__title">
+                {m.name}
+                {m.short_name && (
+                  <span className="card__title-short">{m.short_name}</span>
+                )}
+              </h3>
               <code className="card__code">
                 {m.access_policy} · {m.tracking_type} · qty={m.total_quantity}
               </code>
@@ -722,6 +732,16 @@ function ModelModal2({
           type="text"
           value={local.name}
           onChange={(e) => setLocal({ ...local, name: e.target.value })}
+        />
+      </label>
+      <label className="field">
+        <span className="field__label">Короткое название (для таймлайна)</span>
+        <input
+          type="text"
+          maxLength={60}
+          placeholder="GH5, 6D, Tamron 24-70…"
+          value={local.short_name}
+          onChange={(e) => setLocal({ ...local, short_name: e.target.value })}
         />
       </label>
       <label className="field">

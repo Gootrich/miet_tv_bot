@@ -1,6 +1,6 @@
+import { invalidate } from "../api/cache";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BottomNav } from "../components/BottomNav";
-import { TopBar } from "../components/TopBar";
 import { Modal } from "../components/Modal";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { useToast } from "../components/Toast";
@@ -10,8 +10,6 @@ import { DateTimeRangePicker, type DTRange } from "../components/DateTimeRangePi
 import { AuthRequired } from "../components/AuthRequired";
 import { isAuthError, type ApiError } from "../api/client";
 import {
-  checkoutBooking,
-  returnBooking,
   fetchJsonWithAuth,
   fetchCatalog,
   type BookingOut,
@@ -23,8 +21,6 @@ import {
   fetchAllHistory,
   fetchBookings,
   moveBooking,
-  returnAllInGroup,
-  returnPartialInGroup,
 } from "../api/bookings";
 
 type Tab = "mine" | "all" | "history";
@@ -48,8 +44,6 @@ const HISTORY_CLUB_CHIPS: ChipItem[] = [
 const EVENT_CHIPS: ChipItem[] = [
   { code: "all", label: "Все события" },
   { code: "created", label: "Создана" },
-  { code: "checkout", label: "Выдано" },
-  { code: "return", label: "Возврат" },
   { code: "moved", label: "Перенесена" },
   { code: "cancelled", label: "Отменена" },
 ];
@@ -69,17 +63,23 @@ type HistoryState =
 
 const EVENT_LABEL: Record<string, string> = {
   created: "Создана",
-  checkout: "Выдано",
-  return: "Возврат",
+  checkout: "Выдача (архив)",
+  return: "Возврат (архив)",
   cancelled: "Отменена",
   moved: "Перенесена",
 };
 
+function displayName(b: BookingOut): string {
+  const sn = b.model_short_name;
+  if (sn && sn.trim()) return sn.trim();
+  return b.model_name ?? (b.model_id ? `Модель #${b.model_id}` : "—");
+}
+
 function statusInfo(status: string) {
   switch (status) {
     case "pending":   return { label: "Ожидает",  cls: "status-chip--warning", dot: "status-dot--warning" };
-    case "confirmed": return { label: "Выдано",   cls: "status-chip--success", dot: "status-dot--success" };
-    case "completed": return { label: "Возврат",  cls: "status-chip",          dot: "status-dot--success" };
+    case "confirmed": return { label: "Забронировано", cls: "status-chip--success", dot: "status-dot--success" };
+    case "completed": return { label: "Завершено",     cls: "status-chip",          dot: "status-dot--success" };
     case "cancelled": return { label: "Отменено", cls: "status-chip--error",   dot: "status-dot--error"   };
     default:          return { label: status,     cls: "status-chip",          dot: ""                    };
   }
@@ -129,6 +129,22 @@ function groupBookings(bookings: BookingOut[]): BookingGroup[] {
   return groups;
 }
 
+function groupSummary(bookings: BookingOut[]): string {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const b of bookings) {
+    const n = displayName(b);
+    if (!seen.has(n)) {
+      seen.add(n);
+      names.push(n);
+    }
+  }
+  const max = 2;
+  const head = names.slice(0, max).join(", ");
+  const rest = names.length > max ? ` +${names.length - max}` : "";
+  return `${head}${rest} · ${bookings.length} ${pluralPositions(bookings.length)}`;
+}
+
 function pluralPositions(n: number): string {
   const mod10 = n % 10;
   const mod100 = n % 100;
@@ -161,10 +177,6 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
   const [cancelGroupId, setCancelGroupId] = useState<number | null>(null);
   const [cancelGroupBusy, setCancelGroupBusy] = useState(false);
 
-  // Групповая выдача
-  const [checkoutGroupId, setCheckoutGroupId] = useState<number | null>(null);
-  const [checkoutGroupBusy, setCheckoutGroupBusy] = useState(false);
-
   // Развёрнутые группы (по умолчанию список позиций скрыт)
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(() => new Set<number>());
   const toggleExpanded = (gid: number) => {
@@ -181,14 +193,6 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
   const [moveStartIso, setMoveStartIso] = useState<string | null>(null);
   const [moveEndIso, setMoveEndIso] = useState<string | null>(null);
   const [moveBusy, setMoveBusy] = useState(false);
-
-  // Пакетные действия (группа)
-  const [returnAllGroupId, setReturnAllGroupId] = useState<number | null>(null);
-  const [returnAllBusy, setReturnAllBusy] = useState(false);
-
-  const [partialGroup, setPartialGroup] = useState<BookingGroup | null>(null);
-  const [partialSelected, setPartialSelected] = useState<Set<number>>(new Set());
-  const [partialBusy, setPartialBusy] = useState(false);
 
   const [addToBase, setAddToBase] = useState<BookingOut | null>(null);
   const [addModelId, setAddModelId] = useState<number | "">("");
@@ -320,35 +324,15 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
     state.kind === "ready" && state.bookings.length === PAGE_SIZE;
 
   // ---- Действия по одной брони ----
-  const handleCheckout = async (b: BookingOut) => {
-    if (meId == null) { toast.error("Не удалось определить пользователя"); return; }
-    if (b.user_id !== meId) { toast.error("Выдать может только владелец брони"); return; }
-    try {
-      await checkoutBooking(b.id);
-      toast.success("Оборудование выдано");
-      await loadBookings("replace");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Ошибка выдачи");
-    }
-  };
 
-  const handleReturn = async (b: BookingOut) => {
-    if (meId == null) { toast.error("Не удалось определить пользователя"); return; }
-    if (b.user_id !== meId) { toast.error("Вернуть может только владелец брони"); return; }
-    try {
-      await returnBooking(b.id);
-      toast.success("Возврат оформлен");
-      await loadBookings("replace");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Ошибка возврата");
-    }
-  };
 
   const doCancel = async () => {
     if (cancelId == null) return;
     setCancelBusy(true);
     try {
       await cancelBooking(cancelId);
+
+      invalidate("occupancy");
       toast.success(`Бронь #${cancelId} отменена`);
       setCancelId(null);
       await loadBookings("replace");
@@ -361,8 +345,10 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
     if (cancelGroupId == null) return;
     const group = groups.find((g) => g.group_id === cancelGroupId);
     if (!group) { setCancelGroupId(null); return; }
+    // Новая семантика: фактическая выдача/возврат не используются.
+    // Групповая отмена — только для pending-позиций.
     const toCancel = group.bookings.filter(
-      (b) => b.status === "pending" && b.actual_checkout == null,
+      (b) => b.status === "pending" || b.status === "confirmed",
     );
     if (toCancel.length === 0) { setCancelGroupId(null); return; }
     setCancelGroupBusy(true);
@@ -372,6 +358,8 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
       for (const b of toCancel) {
         try {
           await cancelBooking(b.id);
+
+          invalidate("occupancy");
           done++;
         } catch (e) {
           firstError = `#${b.id}: ${e instanceof Error ? e.message : "ошибка"}`;
@@ -390,38 +378,6 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
     }
   };
 
-  const doCheckoutGroup = async () => {
-    if (checkoutGroupId == null) return;
-    const group = groups.find((g) => g.group_id === checkoutGroupId);
-    if (!group) { setCheckoutGroupId(null); return; }
-    const toCheckout = group.bookings.filter(
-      (b) => b.actual_checkout == null && (b.status === "pending" || b.status === "confirmed"),
-    );
-    if (toCheckout.length === 0) { setCheckoutGroupId(null); return; }
-    setCheckoutGroupBusy(true);
-    let done = 0;
-    let firstError: string | null = null;
-    try {
-      for (const b of toCheckout) {
-        try {
-          await checkoutBooking(b.id);
-          done++;
-        } catch (e) {
-          firstError = `#${b.id}: ${e instanceof Error ? e.message : "ошибка"}`;
-          break;
-        }
-      }
-      if (firstError) {
-        toast.error(`Выдано ${done} из ${toCheckout.length}. Ошибка: ${firstError}`);
-      } else {
-        toast.success(`Выдано позиций: ${done}`);
-      }
-    } finally {
-      setCheckoutGroupBusy(false);
-      setCheckoutGroupId(null);
-      await loadBookings("replace");
-    }
-  };
 
   const openMove = (b: BookingOut) => {
     setMoveTarget(b);
@@ -441,6 +397,8 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
     setMoveBusy(true);
     try {
       await moveBooking(moveTarget.id, moveStartIso, moveEndIso);
+
+      invalidate("occupancy");
       toast.success(`Бронь #${moveTarget.id} перенесена`);
       setMoveTarget(null);
       await loadBookings("replace");
@@ -449,58 +407,9 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
     } finally { setMoveBusy(false); }
   };
 
-  // ---- Пакетные действия ----
-  const doReturnAll = async () => {
-    if (returnAllGroupId == null) return;
-    setReturnAllBusy(true);
-    try {
-      const res = await returnAllInGroup(returnAllGroupId);
-      toast.success(`Возвращено броней: ${res.length}`);
-      setReturnAllGroupId(null);
-      await loadBookings("replace");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Ошибка массового возврата");
-    } finally { setReturnAllBusy(false); }
-  };
 
-  const openPartial = (g: BookingGroup) => {
-    setPartialGroup(g);
-    // предвыбираем всё, что выдано и не возвращено
-    const pre = new Set(
-      g.bookings
-        .filter((b) => b.actual_checkout != null && b.actual_return == null)
-        .map((b) => b.id),
-    );
-    setPartialSelected(pre);
-  };
 
-  const togglePartial = (id: number) => {
-    setPartialSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
-  const doPartial = async () => {
-    if (!partialGroup) return;
-    if (partialSelected.size === 0) {
-      toast.error("Выберите хотя бы одну бронь"); return;
-    }
-    setPartialBusy(true);
-    try {
-      const res = await returnPartialInGroup(
-        partialGroup.group_id,
-        Array.from(partialSelected),
-      );
-      toast.success(`Возвращено броней: ${res.length}`);
-      setPartialGroup(null);
-      await loadBookings("replace");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Ошибка частичного возврата");
-    } finally { setPartialBusy(false); }
-  };
 
   const openAdd = async (b: BookingOut) => {
     setAddToBase(b);
@@ -554,7 +463,6 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
 
   return (
     <div className="page bookings-page">
-      <TopBar title="Брони" />
       <main className="page__content">
 
         <div className="segmented" role="tablist" aria-label="Разделы броней">
@@ -616,22 +524,21 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
               const mine = meId != null && g.primary.user_id === meId;
               const allBookings = g.bookings;
               const s = statusInfo(g.primary.status);
-              const anyCheckedOut = allBookings.some((b) => b.actual_checkout != null && b.actual_return == null);
-              const active = allBookings.some((b) => b.status === "pending" || b.status === "confirmed");
-              void active; // активность используется неявно через individual-кнопки
-
               return (
-                <div key={g.group_id} className="card">
+                <div key={g.group_id} className={`card${mine ? " card--mine" : ""}`}>
                   <div className="card__heading">
                     <h2 className="card__title">
                       {allBookings.length === 1
-                        ? (g.primary.model_name ?? `Модель #${g.primary.model_id ?? "—"}`)
-                        : `Групповая бронь #${g.group_id} · ${allBookings.length} ${pluralPositions(allBookings.length)}`}
+                        ? displayName(g.primary)
+                        : groupSummary(allBookings)}
                     </h2>
-                    <span className={`status-chip ${s.cls}`}>
-                      <span className={`status-dot ${s.dot}`} />
-                      {s.label}
-                    </span>
+                    <div className="card__heading-badges">
+                      {mine && <span className="badge badge--mine">Моя</span>}
+                      <span className={`status-chip ${s.cls}`}>
+                        <span className={`status-dot ${s.dot}`} />
+                        {s.label}
+                      </span>
+                    </div>
                   </div>
 
                   {g.primary.user_name && (
@@ -648,7 +555,7 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
 
                   {/* Управление группой: показать позиции + добавить к брони */}
                   {(allBookings.length > 1 ||
-                    (mine && (g.primary.status === "pending" || g.primary.status === "confirmed") && g.primary.actual_checkout == null)) && (
+                    (mine && (g.primary.status === "pending" || g.primary.status === "confirmed"))) && (
                   <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
                     {allBookings.length > 1 && (
                       <button
@@ -662,7 +569,7 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
                           : `Показать ${allBookings.length} ${pluralPositions(allBookings.length)}`}
                       </button>
                     )}
-                    {mine && (g.primary.status === "pending" || g.primary.status === "confirmed") && g.primary.actual_checkout == null && (
+                    {mine && (g.primary.status === "pending" || g.primary.status === "confirmed") && (
                       <button
                         type="button"
                         className="empty__action"
@@ -679,14 +586,12 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
                     {allBookings.map((b) => {
                       const bs = statusInfo(b.status);
                       const bMine = meId != null && b.user_id === meId;
-                      const canCheckout = bMine && b.actual_checkout == null && (b.status === "pending" || b.status === "confirmed");
-                      const canReturn = bMine && b.actual_checkout != null && b.actual_return == null;
                       return (
                         <div key={b.id} className="booking-positions__row">
                           {allBookings.length > 1 ? (
                             <div className="booking-positions__head">
                               <span className="booking-positions__name">
-                                {b.model_name ?? `Модель #${b.model_id}`}
+                                {displayName(b)}
                                 {b.item_inventory_number ? ` · инв. №${b.item_inventory_number}` : ` · ×${b.quantity}`}
                               </span>
                               <span className={`status-chip ${bs.cls}`}>
@@ -699,23 +604,11 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
                               {b.item_inventory_number ? `Инв. №${b.item_inventory_number}` : `Количество: ${b.quantity}`}
                             </p>
                           )}
-                          {b.actual_checkout && (
-                            <p className="card__subtitle">
-                              Выдано: {fmt(b.actual_checkout)}
-                              {b.actual_return ? ` · возврат: ${fmt(b.actual_return)}` : ""}
-                            </p>
-                          )}
                           <div className="row-actions">
-                            {canCheckout && (
-                              <button type="button" className="card__cta" onClick={() => handleCheckout(b)}>Получить</button>
-                            )}
-                            {canReturn && (
-                              <button type="button" className="card__cta" onClick={() => handleReturn(b)}>Вернуть</button>
-                            )}
-                            {bMine && b.status === "pending" && b.actual_checkout == null && (
+                            {bMine && (b.status === "pending" || b.status === "confirmed") && (
                               <button type="button" className="card__cta card__cta--secondary" onClick={() => openMove(b)}>Перенести</button>
                             )}
-                            {bMine && b.status === "pending" && b.actual_checkout == null && (
+                            {bMine && (b.status === "pending" || b.status === "confirmed") && (
                               <button type="button" className="card__cta card__cta--danger" onClick={() => setCancelId(b.id)}>Отменить</button>
                             )}
                           </div>
@@ -729,32 +622,12 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
                   {mine && (
                     <div className="row-actions booking-group-actions">
                       {allBookings.length > 1 &&
-                        allBookings.every((b) => b.actual_checkout == null && (b.status === "pending" || b.status === "confirmed")) && (
-                          <button type="button" className="card__cta"
-                            disabled={checkoutGroupBusy}
-                            onClick={() => setCheckoutGroupId(g.group_id)}>
-                            Получить всё
-                          </button>
-                        )}
-                      {allBookings.length > 1 &&
-                        allBookings.every((b) => b.status === "pending" && b.actual_checkout == null) && (
+                        allBookings.every((b) => b.status === "pending" || b.status === "confirmed") && (
                           <button type="button" className="card__cta card__cta--danger"
                             onClick={() => setCancelGroupId(g.group_id)}>
                             Отменить всю бронь
                           </button>
                         )}
-                      {anyCheckedOut && (
-                        <>
-                          <button type="button" className="card__cta"
-                            onClick={() => setReturnAllGroupId(g.group_id)}>
-                            Вернуть всё
-                          </button>
-                          <button type="button" className="card__cta card__cta--secondary"
-                            onClick={() => openPartial(g)}>
-                            Вернуть частично
-                          </button>
-                        </>
-                      )}
                     </div>
                   )}
                 </div>
@@ -855,7 +728,7 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
           title="Отменить всю бронь?"
           message={
             cancelGroupId != null
-              ? `Все позиции группы #${cancelGroupId} будут отменены.`
+              ? `Все активные позиции группы #${cancelGroupId} будут отменены (ожидающие и подтверждённые).`
               : ""
           }
           confirmLabel="Отменить всё"
@@ -863,22 +736,6 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
           danger busy={cancelGroupBusy}
           onConfirm={doCancelGroup}
           onCancel={() => { if (!cancelGroupBusy) setCancelGroupId(null); }}
-        />
-
-        {/* Модалка: групповая выдача */}
-        <ConfirmModal
-          open={checkoutGroupId != null}
-          title="Выдать всю бронь?"
-          message={
-            checkoutGroupId != null
-              ? `Все позиции группы #${checkoutGroupId} будут помечены как выданные.`
-              : ""
-          }
-          confirmLabel="Получить всё"
-          cancelLabel="Отмена"
-          busy={checkoutGroupBusy}
-          onConfirm={doCheckoutGroup}
-          onCancel={() => { if (!checkoutGroupBusy) setCheckoutGroupId(null); }}
         />
 
         {/* Модалка: перенос */}
@@ -898,7 +755,7 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
           {moveTarget && (
             <>
               <p className="modal__text">
-                {moveTarget.model_name ?? `Модель #${moveTarget.model_id}`}
+                {displayName(moveTarget)}
               </p>
               <div style={{ marginTop: 8 }}>
                 <DateTimeRangePicker
@@ -911,60 +768,6 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
                 />
               </div>
             </>
-          )}
-        </Modal>
-
-        {/* Модалка: вернуть всё */}
-        <ConfirmModal
-          open={returnAllGroupId != null}
-          title="Вернуть всё?"
-          message={
-            returnAllGroupId != null
-              ? `Все выданные брони группы #${returnAllGroupId} будут возвращены.`
-              : ""
-          }
-          confirmLabel="Вернуть всё"
-          cancelLabel="Не сейчас"
-          busy={returnAllBusy}
-          onConfirm={doReturnAll}
-          onCancel={() => { if (!returnAllBusy) setReturnAllGroupId(null); }}
-        />
-
-        {/* Модалка: вернуть частично */}
-        <Modal
-          open={partialGroup != null}
-          title={`Вернуть частично (группа #${partialGroup?.group_id ?? ""})`}
-          onClose={partialBusy ? () => {} : () => setPartialGroup(null)}
-          footer={
-            <>
-              <button type="button" className="card__cta card__cta--secondary" disabled={partialBusy}
-                onClick={() => setPartialGroup(null)}>Отмена</button>
-              <button type="button" className="card__cta" disabled={partialBusy}
-                onClick={doPartial}>{partialBusy ? "…" : `Вернуть (${partialSelected.size})`}</button>
-            </>
-          }
-        >
-          {partialGroup && (
-            <div>
-              {partialGroup.bookings
-                .filter((b) => b.actual_checkout != null && b.actual_return == null)
-                .map((b) => (
-                  <label key={b.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0", cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={partialSelected.has(b.id)}
-                      onChange={() => togglePartial(b.id)}
-                    />
-                    <span className="card__subtitle">
-                      {b.model_name ?? `Модель #${b.model_id}`}
-                      {b.item_inventory_number ? ` · инв. №${b.item_inventory_number}` : ` · ×${b.quantity}`}
-                    </span>
-                  </label>
-                ))}
-              {partialGroup.bookings.filter((b) => b.actual_checkout != null && b.actual_return == null).length === 0 && (
-                <p className="card__subtitle">Нет выданных и невозвращённых броней в группе.</p>
-              )}
-            </div>
           )}
         </Modal>
 
@@ -985,7 +788,7 @@ export function BookingsPage({ onNavigate }: { onNavigate: (tab: string) => void
           {addToBase && (
             <>
               <p className="modal__text">
-                {addToBase.model_name ?? `Модель #${addToBase.model_id}`} · {fmt(addToBase.planned_start)} — {fmt(addToBase.planned_end)}
+                {displayName(addToBase)} · {fmt(addToBase.planned_start)} — {fmt(addToBase.planned_end)}
               </p>
               <label className="card__subtitle" style={{ display: "block", marginTop: 8 }}>
                 Модель

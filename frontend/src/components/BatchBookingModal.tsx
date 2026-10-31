@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Modal } from "./Modal";
 import { DateTimeRangePicker, type DTRange } from "./DateTimeRangePicker";
 import { QuantityStepper } from "./QuantityStepper";
 import { useToast } from "./Toast";
 import { createBatchBooking } from "../api/bookings";
 import type { CatalogItem } from "../api/catalog";
+import { cartRemove, cartSetQty, cartSetRange, useCart } from "../state/cart";
 
 interface Props {
   open: boolean;
@@ -15,63 +16,61 @@ interface Props {
 
 export function BatchBookingModal({ open, items, onClose, onSuccess }: Props) {
   const toast = useToast();
-  const [dt, setDt] = useState<DTRange>({ start: null, end: null });
+  const cart = useCart();
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // локальные количества по modelId (изначально из items)
-  const [qty, setQty] = useState<Record<number, number>>(() => {
-    const m: Record<number, number> = {};
-    for (const { item, quantity } of items) m[item.modelId] = quantity;
-    return m;
-  });
-
-  // Сброс при закрытии: при следующем открытии пикер подставит «сейчас» и +1 час.
-  useEffect(() => {
-    if (open) {
-      const m: Record<number, number> = {};
-      for (const { item, quantity } of items) m[item.modelId] = quantity;
-      setQty(m);
-      return;
-    }
-    setDt({ start: null, end: null });
-    setComment("");
-  }, [open]);
-
-  // Отсортированный список по названию (по алфавиту)
-  const sortedItems = useMemo(
+  // В модалке показываем только позиции, которые сейчас в корзине,
+  // и сортируем по названию (ru, без учёта регистра).
+  const visibleItems = useMemo(
     () =>
-      [...items].sort((a, b) =>
-        a.item.title.localeCompare(b.item.title, "ru", { sensitivity: "base" }),
-      ),
-    [items],
+      items
+        .filter(({ item }) => cart.items.has(item.modelId))
+        .sort((a, b) =>
+          a.item.title.localeCompare(b.item.title, "ru", { sensitivity: "base" }),
+        ),
+    [items, cart.items],
   );
 
   const doSubmit = async () => {
-    if (!dt.start || !dt.end) { toast.error("Укажите начало и конец"); return; }
-    if (items.length === 0) { toast.error("Ничего не выбрано"); return; }
+    if (!cart.range.start || !cart.range.end) {
+      toast.error("Укажите начало и конец");
+      return;
+    }
+    if (visibleItems.length === 0) {
+      toast.error("Ничего не выбрано");
+      return;
+    }
     setBusy(true);
     try {
       const res = await createBatchBooking({
-        items: items.map(({ item }) => ({
+        items: visibleItems.map(({ item }) => ({
           model_id: item.modelId,
-          quantity: qty[item.modelId] ?? 1,
+          quantity: cart.items.get(item.modelId) ?? 1,
         })),
-        planned_start: dt.start,
-        planned_end: dt.end,
+        planned_start: cart.range.start,
+        planned_end: cart.range.end,
         comment: comment ? comment : null,
       });
       toast.success(`Создано броней: ${res.length} (группа #${res[0]?.group_id ?? "?"})`);
       onSuccess();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Ошибка пакетной брони");
-    } finally { setBusy(false); }
+      let message = e instanceof Error ? e.message : "Ошибка пакетной брони";
+      const body = (e as { body?: unknown } | null)?.body;
+      if (body && typeof body === "object" && body !== null && "detail" in body) {
+        const d = (body as { detail: unknown }).detail;
+        if (typeof d === "string") message = d;
+      }
+      toast.error(message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <Modal
       open={open}
-      title={`Забронировать выбранное · ${items.length} поз.`}
+      title={`Забронировать выбранное · ${visibleItems.length} поз.`}
       onClose={busy ? () => {} : onClose}
       width={600}
       footer={
@@ -84,24 +83,38 @@ export function BatchBookingModal({ open, items, onClose, onSuccess }: Props) {
       }
     >
       <div className="batch-list">
-        {sortedItems.map(({ item }) => (
+        {visibleItems.map(({ item }) => (
           <div key={item.modelId} className="batch-list__row">
             <div className="batch-list__info">
               <div className="batch-list__title">{item.title}</div>
               <div className="batch-list__meta">
                 {item.category}
               </div>
+              {item.availableInPeriod !== null &&
+                item.availableInPeriod !== undefined &&
+                item.availableInPeriod <
+                  (cart.items.get(item.modelId) ?? 1) && (
+                  <div className="batch-list__warn" role="alert">
+                    Доступно на период: {item.availableInPeriod}
+                  </div>
+                )}
             </div>
             <div className="batch-list__qty">
               <QuantityStepper
-                value={qty[item.modelId] ?? 1}
-                min={1}
+                value={cart.items.get(item.modelId) ?? 1}
+                min={0}
                 max={Math.max(1, item.totalQuantity)}
-                onChange={(v) =>
-                  setQty((prev) => ({ ...prev, [item.modelId]: v }))
-                }
+                onChange={(v) => cartSetQty(item.modelId, v)}
                 ariaLabel={`Количество: ${item.title}`}
               />
+              <button
+                type="button"
+                className="batch-list__remove"
+                onClick={() => cartRemove(item.modelId)}
+                aria-label={`Удалить ${item.title}`}
+              >
+                ×
+              </button>
             </div>
           </div>
         ))}
@@ -109,11 +122,11 @@ export function BatchBookingModal({ open, items, onClose, onSuccess }: Props) {
 
       <DateTimeRangePicker
         variant="modal"
-        value={dt}
-        onChange={(next) => setDt(next)}
+        value={cart.range}
+        onChange={(next: DTRange) => cartSetRange(next)}
       />
 
-      {items.some(({ item }) => item.categoryCode === "studio") && (
+      {visibleItems.some(({ item }) => item.categoryCode === "studio") && (
         <div className="studio-hint">
           Студия: Пн–Сб 09:00–22:00, Вс — выходной (по согласованию)
         </div>

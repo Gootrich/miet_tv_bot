@@ -1,7 +1,6 @@
-import { load } from "../api/cache";
+import { load, peek } from "../api/cache";
 import { useEffect, useState } from "react";
 import { BottomNav } from "../components/BottomNav";
-import { TopBar } from "../components/TopBar";
 import { AdminSection } from "../components/AdminSection";
 import { AuthRequired } from "../components/AuthRequired";
 import { fetchMe, type UserOut } from "../api/admin";
@@ -72,6 +71,9 @@ export function ProfilePage({
     let cancelled = false;
     async function loadMe() {
       try {
+        // Мгновенный рендер из тёплого кэша (без loading-flash).
+        const cachedMe = peek<UserOut>("me");
+        if (cachedMe) setState({ kind: "me", me: cachedMe });
         const me = await load("me", fetchMe);
         if (cancelled) return;
         setState({ kind: "me", me });
@@ -128,7 +130,6 @@ export function ProfilePage({
 
   return (
     <div className="page">
-      <TopBar title="Профиль" />
       <main className="page__content">
         {state.kind === "me" && (
           <section className="profile-head">

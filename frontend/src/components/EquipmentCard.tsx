@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createBooking, type CatalogItem } from "../api/catalog";
+import { invalidate } from "../api/cache";
 import { DateTimeRangePicker, type DTRange } from "./DateTimeRangePicker";
 import { QuantityStepper } from "./QuantityStepper";
 import { EquipmentThumb } from "./EquipmentThumb";
@@ -19,15 +20,21 @@ function formatFreeUntil(iso: string | null): string {
 }
 
 function availabilityLabel(item: CatalogItem): { text: string; kind: "ok" | "busy" | "off" } {
-  const available = item.availableNow;
+  const hasPeriod =
+    item.availableInPeriod !== undefined && item.availableInPeriod !== null;
+  const available = hasPeriod
+    ? (item.availableInPeriod as number)
+    : item.availableNow;
   const total = item.totalQuantity;
   if (total === 0) return { text: "Нет в наличии", kind: "off" };
   if (available <= 0) {
+    if (hasPeriod) return { text: "Занято", kind: "busy" };
     return {
       text: item.freeUntil ? `Занято, ${formatFreeUntil(item.freeUntil)}` : "Занято",
       kind: "busy",
     };
   }
+  if (hasPeriod) return { text: `${available} из ${total}`, kind: "ok" };
   if (item.freeUntil) return { text: `Свободно ${formatFreeUntil(item.freeUntil)}`, kind: "ok" };
   return { text: `${available} из ${total}`, kind: "ok" };
 }
@@ -48,11 +55,15 @@ export function EquipmentCard({
   showCategory = false,
   selected = false,
   onToggleSelect,
+  favorite,
+  onToggleFavorite
 }: {
   item: CatalogItem;
   showCategory?: boolean;
   selected?: boolean;
   onToggleSelect?: (item: CatalogItem) => void;
+  favorite?: boolean;
+  onToggleFavorite?: () => void;
 }) {
   const toast = useToast();
   const [modalOpen, setModalOpen] = useState(false);
@@ -90,6 +101,9 @@ export function EquipmentCard({
         planned_end: dtRange.end,
         comment: comment ? comment : null,
       });
+      invalidate("catalog");
+
+      invalidate("occupancy");
       setModalOpen(false);
       toast.success("Бронирование создано");
     } catch (err) {
@@ -103,6 +117,10 @@ export function EquipmentCard({
   const meta = [showCategory ? item.category : null, item.subtitle]
     .filter(Boolean)
     .join(" · ");
+  const shortName =
+    item.shortName && item.shortName.trim() && item.shortName.trim() !== item.title.trim()
+      ? item.shortName.trim()
+      : null;
 
   return (
     <>
@@ -116,6 +134,11 @@ export function EquipmentCard({
           <EquipmentThumb src={item.imageUrl} categoryCode={item.categoryCode} title={item.title} />
           <div className="row-head__main">
             <span className="row-head__title">{item.title}</span>
+            {shortName && (
+              <span className="row-head__short" title="Короткое название">
+                {shortName}
+              </span>
+            )}
             {meta && <span className="row-head__meta">{meta}</span>}
             <span className={`row-head__status row-head__status--${av.kind}`}>
               <span className={`status-dot status-dot--${
@@ -145,6 +168,29 @@ export function EquipmentCard({
               }}
             >
               {selected ? <IconCheck size={18} /> : <IconPlus size={18} />}
+            </span>
+          )}
+          {onToggleFavorite && (
+            <span
+              role="button"
+              tabIndex={0}
+              className={`row-head__fav${favorite ? " is-active" : ""}`}
+              aria-label={favorite ? "Убрать из избранного" : "В избранное"}
+              aria-pressed={!!favorite}
+              title={favorite ? "Убрать из избранного" : "В избранное"}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onToggleFavorite();
+                }
+              }}
+            >
+              {favorite ? "★" : "☆"}
             </span>
           )}
           <span className="row-head__chevron" aria-hidden="true">›</span>

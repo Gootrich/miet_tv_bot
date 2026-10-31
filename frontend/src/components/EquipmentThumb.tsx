@@ -38,6 +38,7 @@ export function EquipmentThumb({ src, categoryCode, title }: Props) {
           src={src}
           alt={title}
           loading="lazy"
+          decoding="async"
           className="thumb__img"
           onLoad={() => setState("ok")}
           onError={() => setState("error")}
