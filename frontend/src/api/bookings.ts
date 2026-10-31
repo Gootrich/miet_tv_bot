@@ -129,24 +129,3 @@ export function addToBooking(
   });
 }
 
-/** «Вернуть всё»: возвращает все выданные (confirmed) брони группы. */
-export function returnAllInGroup(groupId: number): Promise<BookingOut[]> {
-  return fetchJsonWithAuth<BookingOut[]>(
-    `/bookings/group/${groupId}/return-all`,
-    { method: "POST" },
-  );
-}
-
-/** «Вернуть частично»: возвращает только указанные брони группы. */
-export function returnPartialInGroup(
-  groupId: number,
-  bookingIds: number[],
-): Promise<BookingOut[]> {
-  return fetchJsonWithAuth<BookingOut[]>(
-    `/bookings/group/${groupId}/return-partial`,
-    {
-      method: "POST",
-      body: JSON.stringify({ booking_ids: bookingIds }),
-    },
-  );
-}

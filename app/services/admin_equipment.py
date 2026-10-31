@@ -156,6 +156,7 @@ async def create_model(
     category_id: int, name: str,
     manufacturer: str | None, description: str | None,
     access_policy: str, tracking_type: str, total_quantity: int,
+    short_name: str | None = None,
 ) -> EquipmentModel:
     if access_policy not in ACCESS_POLICIES:
         raise ValueError(f"access_policy должен быть одним из {sorted(ACCESS_POLICIES)}.")
@@ -168,6 +169,7 @@ async def create_model(
         raise ValueError("Категория не найдена.")
     m = EquipmentModel(
         category_id=category_id, name=name.strip(),
+        short_name=short_name,
         manufacturer=manufacturer, description=description,
         access_policy=access_policy, tracking_type=tracking_type,
         total_quantity=total_quantity,
@@ -214,7 +216,7 @@ async def update_model(
         if cat is None:
             raise ValueError("Новая категория не найдена.")
         m.category_id = fields["category_id"]
-    for f in ("name", "manufacturer", "description"):
+    for f in ("name", "short_name", "manufacturer", "description"):
         if f in fields and fields[f] is not None:
             setattr(m, f, fields[f])
     await session.flush()

@@ -163,6 +163,7 @@ export interface ModelAdmin {
   id: number;
   category_id: number;
   name: string;
+  short_name: string | null;
   manufacturer: string | null;
   description: string | null;
   access_policy: AccessPolicy;
@@ -181,6 +182,7 @@ export function fetchAdminModels(params: { category_id?: number } = {}): Promise
 export function createModel(payload: {
   category_id: number;
   name: string;
+  short_name?: string | null;
   manufacturer?: string | null;
   description?: string | null;
   access_policy?: AccessPolicy;

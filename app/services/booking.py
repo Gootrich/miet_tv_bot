@@ -64,23 +64,46 @@ async def _check_quantity_availability(
     end_dt: datetime,
 ) -> None:
     """Считает сумму активных броней на пересекающийся интервал (с блокировкой строки модели)."""
-    stmt = select(func.coalesce(func.sum(Booking.quantity), 0)).where(
-        Booking.model_id == model.id,
-        Booking.status.in_(("pending", "confirmed")),
-        Booking.planned_start < end_dt,
-        Booking.planned_end > start_dt,
+    result = await session.execute(
+        select(Booking).where(
+            Booking.model_id == model.id,
+            Booking.status.in_(("pending", "confirmed")),
+            Booking.planned_start < end_dt,
+            Booking.planned_end > start_dt,
+        )
     )
-    result = await session.execute(stmt)
-    busy = int(result.scalar_one() or 0)
+    avail_bookings = list(result.scalars().all())
+    busy = _peak_booked_booking(avail_bookings, start_dt, end_dt)
     free = model.total_quantity - busy
     if requested_quantity > free:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                f"Недостаточно единиц на выбранный интервал: "
-                f"всего {model.total_quantity}, занято {busy}, свободно {max(free, 0)}."
+                f"«{model.name}» занят на выбранный период: "
+                f"свободно {max(free, 0)} из {model.total_quantity}."
             ),
         )
+
+
+def _peak_booked_booking(bookings, start_dt, end_dt) -> int:
+    """Максимальная одновременная занятость на [start_dt, end_dt)."""
+    relevant = [
+        b for b in bookings
+        if b.planned_start < end_dt and b.planned_end > start_dt
+    ]
+    if not relevant:
+        return 0
+    points = {start_dt}
+    for b in relevant:
+        if start_dt < b.planned_start < end_dt:
+            points.add(b.planned_start)
+    peak = 0
+    for p in points:
+        s = sum((b.quantity or 1) for b in relevant
+                if b.planned_start <= p < b.planned_end)
+        if s > peak:
+            peak = s
+    return peak
 
 
 # Глобальный asyncio.Lock: сериализует create_booking в рамках процесса.
@@ -171,24 +194,22 @@ async def create_booking(
                             f"'{model.access_policy}'.",
                         )
 
-                    sum_result = await tx.execute(
-                        select(
-                            func.coalesce(func.sum(Booking.quantity), 0)
-                        ).where(
+                    avail_result = await tx.execute(
+                        select(Booking).where(
                             Booking.model_id == model_id,
                             Booking.status.in_(("pending", "confirmed")),
                             Booking.planned_start < end_dt,
                             Booking.planned_end > start_dt,
                         )
                     )
-                    busy = int(sum_result.scalar_one() or 0)
+                    avail_bookings = list(avail_result.scalars().all())
+                    busy = _peak_booked_booking(avail_bookings, start_dt, end_dt)
                     free = model.total_quantity - busy
                     if quantity > free:
                         raise HTTPException(
                             409,
-                            f"Недостаточно единиц на выбранный интервал: "
-                            f"всего {model.total_quantity}, занято {busy}, "
-                            f"свободно {max(free, 0)}.",
+                            f"«{model.name}» занят на выбранный период: "
+                            f"свободно {max(free, 0)} из {model.total_quantity}.",
                         )
 
                 # --- item_id ---
@@ -286,7 +307,11 @@ async def checkout_booking(
     user_id: int,
     is_admin: bool = False,
 ) -> Booking:
-    """Подтверждает получение оборудования (actual_checkout)."""
+    """LEGACY (этап 2): не используется новой бизнес-логикой; сохранено
+    для обратной совместимости.
+
+    Подтверждает получение оборудования (actual_checkout).
+    """
     booking = await session.get(Booking, booking_id)
     if booking is None:
         raise HTTPException(
@@ -330,7 +355,11 @@ async def return_booking(
     user_id: int,
     is_admin: bool = False,
 ) -> Booking:
-    """Подтверждает возврат оборудования (actual_return → completed)."""
+    """LEGACY (этап 2): не используется новой бизнес-логикой; сохранено
+    для обратной совместимости.
+
+    Подтверждает возврат оборудования (actual_return → completed).
+    """
     booking = await session.get(Booking, booking_id)
     if booking is None:
         raise HTTPException(
@@ -983,7 +1012,10 @@ async def return_all_in_group(
     group_id: int,
     user: User,
 ) -> list[Booking]:
-    """«Вернуть всё»: атомарно возвращает все выданные брони группы.
+    """LEGACY (этап 2): не используется новой бизнес-логикой; сохранено
+    для обратной совместимости.
+
+    «Вернуть всё»: атомарно возвращает все выданные брони группы.
 
     H-6: все мутации и события в одной транзакции.
     Идемпотентность: брони без checkout или уже возвращённые пропускаются.
@@ -1103,7 +1135,10 @@ async def return_partial_in_group(
     user: User,
     booking_ids: list[int],
 ) -> list[Booking]:
-    """«Вернуть частично»: атомарно вернуть указанные booking_id группы.
+    """LEGACY (этап 2): не используется новой бизнес-логикой; сохранено
+    для обратной совместимости.
+
+    «Вернуть частично»: атомарно вернуть указанные booking_id группы.
 
     H-6: все мутации и события в одной транзакции.
     Q1-c2 (идемпотентность): уже completed → пропуск без ошибки.

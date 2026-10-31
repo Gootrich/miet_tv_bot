@@ -75,8 +75,30 @@ async def health() -> HealthOut:
 # --- Catalog (public) ---
 
 @router.get("/catalog", response_model=list[CategoryWithModelsOut])
-async def get_catalog(session: AsyncSession = Depends(get_session)):
-    return await catalog_service.list_categories_with_models(session)
+async def get_catalog(
+    from_dt: datetime | None = None,
+    to_dt: datetime | None = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """Каталог с моделями.
+
+    Без параметров — текущее поведение (available_now / free_until /
+    next_busy_at на «сейчас»). С `from_dt`+`to_dt` — дополнительно
+    `available_in_period` для каждой модели на интервал [from_dt, to_dt).
+    """
+    if (from_dt is None) != (to_dt is None):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="from_dt и to_dt должны быть указаны вместе.",
+        )
+    if from_dt is not None and to_dt is not None and from_dt >= to_dt:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="from_dt должен быть раньше to_dt.",
+        )
+    return await catalog_service.list_categories_with_models(
+        session, from_dt=from_dt, to_dt=to_dt,
+    )
 
 
 @router.get(
@@ -166,6 +188,7 @@ async def add_to_booking_endpoint(
 @router.post(
     "/bookings/group/{group_id}/return-all",
     response_model=list[BookingOut],
+    deprecated=True,
 )
 async def return_all_in_group_endpoint(
     group_id: int,
@@ -211,6 +234,7 @@ async def cancel_group_endpoint(
 @router.post(
     "/bookings/group/{group_id}/return-partial",
     response_model=list[BookingOut],
+    deprecated=True,
 )
 async def return_partial_in_group_endpoint(
     group_id: int,
@@ -271,7 +295,11 @@ async def get_bookings_endpoint(
     return [BookingOut.from_orm_booking(b) for b in bookings]
 
 
-@router.post("/bookings/{booking_id}/checkout", response_model=BookingOut)
+@router.post(
+    "/bookings/{booking_id}/checkout",
+    response_model=BookingOut,
+    deprecated=True,
+)
 async def checkout_booking_endpoint(
     booking_id: int,
     current_user: User = Depends(get_current_user),
@@ -287,7 +315,11 @@ async def checkout_booking_endpoint(
     return BookingOut.from_orm_booking(detailed or booking)
 
 
-@router.post("/bookings/{booking_id}/return", response_model=BookingOut)
+@router.post(
+    "/bookings/{booking_id}/return",
+    response_model=BookingOut,
+    deprecated=True,
+)
 async def return_booking_endpoint(
     booking_id: int,
     current_user: User = Depends(get_current_user),
@@ -787,6 +819,7 @@ async def admin_create_model(
         m = await admin_eq.create_model(
             session,
             category_id=payload.category_id, name=payload.name,
+            short_name=payload.short_name,
             manufacturer=payload.manufacturer, description=payload.description,
             access_policy=payload.access_policy,
             tracking_type=payload.tracking_type,
@@ -956,3 +989,141 @@ async def admin_delete_item(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     await session.commit()
     return {"status": "deleted", "id": item_id}
+
+@router.get(
+    "/catalog/models/{model_id}/availability",
+)
+async def get_model_availability_endpoint(
+    model_id: int,
+    from_dt: datetime,
+    to_dt: datetime,
+    quantity: int = 1,
+    session: AsyncSession = Depends(get_session),
+):
+    """Доступность модели на [from_dt, to_dt) и ближайший подходящий слот.
+
+    `next_available_start/end` — ближайший непрерывный интервал такой же
+    длительности, на который доступно >= quantity единиц. None, если
+    в обозримом будущем не нашлось (редкий случай)."""
+    from app.api.schemas import ModelAvailabilityOut
+    from app.services import catalog as catalog_service
+
+    if from_dt >= to_dt:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="from_dt должен быть раньше to_dt.",
+        )
+    if quantity < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="quantity должно быть >= 1.",
+        )
+    model = await catalog_service.get_model_by_id(session, model_id)
+    if model is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Модель не найдена.",
+        )
+    available, _peak = await catalog_service.check_availability(
+        session, model, quantity, from_dt, to_dt,
+    )
+    next_slot = await catalog_service.find_next_available(
+        session, model, from_dt, to_dt, quantity,
+    )
+    return ModelAvailabilityOut(
+        model_id=model_id,
+        available_in_period=available,
+        next_available_start=next_slot[0] if next_slot else None,
+        next_available_end=next_slot[1] if next_slot else None,
+    )
+
+@router.get("/catalog/models/{model_id}/aliases")
+async def list_model_aliases_endpoint(
+    model_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Альтернативные названия модели (публично)."""
+    from app.services import aliases as aliases_service
+    rows = await aliases_service.list_aliases(session, model_id)
+    return [
+        {
+            "id": r.id,
+            "model_id": r.model_id,
+            "value": r.value,
+            "created_by_user_id": r.created_by_user_id,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+
+
+@router.post("/catalog/models/{model_id}/aliases")
+async def add_model_alias_endpoint(
+    model_id: int,
+    body: dict,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Добавить альтернативное название (только одобренные участники)."""
+    from app.services import aliases as aliases_service
+    value = body.get("value") if isinstance(body, dict) else None
+    if not isinstance(value, str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Поле value обязательно.",
+        )
+    alias = await aliases_service.add_alias(session, model_id, value, current_user)
+    return {
+        "id": alias.id,
+        "model_id": alias.model_id,
+        "value": alias.value,
+        "created_by_user_id": alias.created_by_user_id,
+        "created_at": alias.created_at.isoformat() if alias.created_at else None,
+    }
+
+
+@router.delete("/catalog/models/{model_id}/aliases/{alias_id}")
+async def delete_model_alias_endpoint(
+    model_id: int,
+    alias_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Удалить название (автор или admin)."""
+    from app.services import aliases as aliases_service
+    await aliases_service.delete_alias(session, model_id, alias_id, current_user)
+    return {"status": "deleted", "id": alias_id}
+
+@router.get("/me/favorites")
+async def list_favorites_endpoint(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Список model_id, добавленных текущим пользователем в избранное."""
+    from app.services import favorites as favorites_service
+    return await favorites_service.list_favorites(session, current_user)
+
+
+@router.post("/catalog/models/{model_id}/favorite")
+async def add_favorite_endpoint(
+    model_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Добавить модель в избранное (идемпотентно)."""
+    from app.services import favorites as favorites_service
+    await favorites_service.add_favorite(session, current_user, model_id)
+    return {"model_id": model_id, "favorited": True}
+
+
+@router.delete("/catalog/models/{model_id}/favorite")
+async def remove_favorite_endpoint(
+    model_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Убрать модель из избранного (идемпотентно)."""
+    from app.services import favorites as favorites_service
+    await favorites_service.remove_favorite(session, current_user, model_id)
+    return {"model_id": model_id, "favorited": False}
+

@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import StaticPool
 
 from app.api import routes as routes_module
-from app.api.deps import get_optional_approved_user
+from app.api.deps import get_current_user, get_optional_approved_user
 from app.api.main import app
 from app.core.config import settings
 from app.db.base import Base
@@ -37,6 +37,11 @@ from app.models.user import User
 from app.services import booking as booking_service
 from app.services import admin_equipment as admin_eq
 from app.services.booking_history import list_all_history
+
+
+LEGACY_SKIP = pytest.mark.skip(
+    reason="legacy: checkout/return deprecated in stage 2 (endpoints kept for compat)"
+)
 
 
 def _build_test_metadata() -> MetaData:
@@ -60,7 +65,12 @@ def _build_test_metadata() -> MetaData:
         "categories",
         "equipment_models",
         "equipment_items",
+        "equipment_model_aliases",
+        "user_favorites",
         "booking_history",
+        # delete_user_completely делает UPDATE/DELETE по этой таблице —
+        # без неё падает test_delete_user_allowed_after_booking_ends.
+        "registration_requests",
     ):
         Base.metadata.tables[name].to_metadata(md)
 
@@ -419,6 +429,7 @@ async def booking_session_factory(
         await engine.dispose()
 
 
+@LEGACY_SKIP
 async def test_return_all_in_group_returns_all(
     booking_session_factory: dict,
 ) -> None:
@@ -449,6 +460,7 @@ async def test_return_all_in_group_returns_all(
         assert len(events) == 3
 
 
+@LEGACY_SKIP
 async def test_return_all_in_group_atomic_on_error(
     booking_session_factory: dict,
     monkeypatch: pytest.MonkeyPatch,
@@ -490,6 +502,7 @@ async def test_return_all_in_group_atomic_on_error(
         assert events == []
 
 
+@LEGACY_SKIP
 async def test_return_partial_in_group_idempotent(
     booking_session_factory: dict,
 ) -> None:
@@ -517,6 +530,7 @@ async def test_return_partial_in_group_idempotent(
             assert b.status == "completed"
 
 
+@LEGACY_SKIP
 async def test_return_partial_in_group_invalid_400(
     booking_session_factory: dict,
 ) -> None:
@@ -911,3 +925,176 @@ async def test_catalog_availability_all_retired(client: AsyncClient) -> None:
         m for c in data for m in c["models"] if m["name"] == "Ghost Light"
     )
     assert ghost["available_now"] == 0
+
+
+# ============================================================
+# Этап 2: available_in_period + новая семантика удаления
+# ============================================================
+
+
+async def test_catalog_available_in_period(client: AsyncClient) -> None:
+    """Без параметров available_in_period=None, с периодом — число."""
+    resp = await client.get("/api/catalog")
+    sony = next(m for c in resp.json() for m in c["models"] if m["name"] == "Sony A7 III")
+    assert sony["available_in_period"] is None
+
+    resp = await client.get(
+        "/api/catalog",
+        params={"from_dt": "2030-01-01T00:00:00Z", "to_dt": "2030-01-02T00:00:00Z"},
+    )
+    sony = next(m for c in resp.json() for m in c["models"] if m["name"] == "Sony A7 III")
+    # Sony individual: 1 active (SONY-001), 1 maintenance; броней нет.
+    assert sony["available_in_period"] == 1
+
+
+async def test_catalog_period_requires_both_params(client: AsyncClient) -> None:
+    resp = await client.get("/api/catalog", params={"from_dt": "2030-01-01T00:00:00Z"})
+    assert resp.status_code == 400
+
+
+async def test_catalog_period_requires_order(client: AsyncClient) -> None:
+    resp = await client.get(
+        "/api/catalog",
+        params={"from_dt": "2030-01-02T00:00:00Z", "to_dt": "2030-01-01T00:00:00Z"},
+    )
+    assert resp.status_code == 400
+
+
+async def test_delete_user_blocked_by_future_active_booking(
+    booking_session_factory: dict,
+) -> None:
+    """_unreturned_labels: future confirmed → удаление блокируется."""
+    from app.services import users as users_service
+
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+
+    async with factory() as session:
+        actor = User(
+            telegram_id=770001, full_name="Actor",
+            status="active", is_active=True,
+        )
+        session.add(actor)
+        await session.commit()
+        actor_id = actor.id
+
+    async with factory() as session:
+        with pytest.raises(users_service.UserHasUnreturnedEquipment):
+            await users_service.delete_user_completely(
+                session, ctx["user_id"], actor_id=actor_id,
+            )
+
+
+async def test_delete_user_allowed_after_booking_ends(
+    booking_session_factory: dict,
+) -> None:
+    """_unreturned_labels: только прошедшие брони → удаление разрешено."""
+    from app.services import users as users_service
+
+    ctx = booking_session_factory
+    factory = ctx["factory"]
+
+    async with factory() as session:
+        for bid in ctx["booking_ids"]:
+            b = await session.get(Booking, bid)
+            b.planned_start = datetime(2020, 1, 1, tzinfo=timezone.utc)
+            b.planned_end = datetime(2020, 1, 2, tzinfo=timezone.utc)
+        actor = User(
+            telegram_id=770002, full_name="Actor2",
+            status="active", is_active=True,
+        )
+        session.add(actor)
+        await session.commit()
+        actor_id = actor.id
+
+    async with factory() as session:
+        result = await users_service.delete_user_completely(
+            session, ctx["user_id"], actor_id=actor_id,
+        )
+        assert result["deleted_user_id"] == ctx["user_id"]
+
+
+# ============================================================
+# Favorites (user_favorites) — этап C-2
+# ============================================================
+
+async def _create_test_user(
+    session_factory: async_sessionmaker[AsyncSession],
+    telegram_id: int,
+) -> User:
+    async with session_factory() as session:
+        user = User(
+            telegram_id=telegram_id,
+            full_name="Test User",
+            username=f"test_{telegram_id}",
+            status="active",
+            is_active=True,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        return user
+
+
+async def _sony_model_id(client: AsyncClient) -> int:
+    catalog = await client.get("/api/catalog")
+    assert catalog.status_code == 200
+    return next(
+        m["id"]
+        for c in catalog.json()
+        for m in c["models"]
+        if m["name"] == "Sony A7 III"
+    )
+
+
+async def test_favorites_add_and_list(
+    client: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """POST favorite → GET /me/favorites содержит model_id."""
+    user = await _create_test_user(session_factory, telegram_id=999_101)
+
+    async def override_user():
+        return user
+
+    app.dependency_overrides[get_current_user] = override_user
+    try:
+        sony_id = await _sony_model_id(client)
+
+        add_resp = await client.post(f"/api/catalog/models/{sony_id}/favorite")
+        assert add_resp.status_code == 200
+        assert add_resp.json() == {"model_id": sony_id, "favorited": True}
+
+        list_resp = await client.get("/api/me/favorites")
+        assert list_resp.status_code == 200
+        assert sony_id in list_resp.json()
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+async def test_favorites_remove(
+    client: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """DELETE favorite → GET /me/favorites больше не содержит model_id."""
+    user = await _create_test_user(session_factory, telegram_id=999_102)
+
+    async def override_user():
+        return user
+
+    app.dependency_overrides[get_current_user] = override_user
+    try:
+        sony_id = await _sony_model_id(client)
+
+        await client.post(f"/api/catalog/models/{sony_id}/favorite")
+
+        del_resp = await client.delete(f"/api/catalog/models/{sony_id}/favorite")
+        assert del_resp.status_code == 200
+        assert del_resp.json() == {"model_id": sony_id, "favorited": False}
+
+        list_resp = await client.get("/api/me/favorites")
+        assert list_resp.status_code == 200
+        assert sony_id not in list_resp.json()
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+

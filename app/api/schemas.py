@@ -5,9 +5,9 @@ ORM-моделями. Внутренние поля (например, telegram_
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Any
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 from datetime import datetime
 
 
@@ -38,11 +38,16 @@ class EquipmentModelOut(BaseModel):
     name: str
     manufacturer: str | None = None
     description: str | None = None
+    short_name: str | None = None
+    aliases: list[Any] = Field(default_factory=list)
     tracking_type: str = Field(description="individual | quantity")
     total_quantity: int
     available_now: int = 0
     free_until: datetime | None = None
     next_busy_at: datetime | None = None
+    # Этап 2: доступность на интервал [from_dt, to_dt). Заполняется только
+    # при запросе GET /catalog?from_dt=...&to_dt=...; иначе None.
+    available_in_period: int | None = None
     access_policy: str = Field(
         description="all | photographer | videographer",
     )
@@ -54,6 +59,21 @@ class EquipmentModelOut(BaseModel):
         if not self.image_filename:
             return None
         return f"/api/media/models/{self.image_filename}"
+
+    @field_validator("aliases", mode="before")
+    @classmethod
+    def _coerce_aliases(cls, v):
+        if v is None:
+            return []
+        out = []
+        for item in v:
+            if isinstance(item, str):
+                out.append(item)
+            else:
+                val = getattr(item, "value", None)
+                if val:
+                    out.append(val)
+        return out
 
 
 class EquipmentModelDetailPublicOut(EquipmentModelOut):
@@ -142,6 +162,7 @@ class BookingOut(BaseModel):
     # денормализация:
     user_name: str | None = None
     model_name: str | None = None
+    model_short_name: str | None = None
     category_name: str | None = None
     item_inventory_number: str | None = None
 
@@ -155,6 +176,9 @@ class BookingOut(BaseModel):
         """
         user = getattr(booking, "user", None)
         model = getattr(booking, "model", None)
+        model_short_name = (
+            getattr(model, "short_name", None) if model is not None else None
+        )
         item = getattr(booking, "item", None)
 
         category_name = None
@@ -179,6 +203,7 @@ class BookingOut(BaseModel):
             group_id=booking.group_id,
             user_name=user.full_name if user is not None else None,
             model_name=model.name if model is not None else None,
+            model_short_name=model_short_name,
             category_name=category_name,
             item_inventory_number=(
                 item.inventory_number if item is not None else None
@@ -332,6 +357,7 @@ class ModelAdminOut(BaseModel):
     id: int
     category_id: int
     name: str
+    short_name: str | None = None
     manufacturer: str | None = None
     description: str | None = None
     access_policy: str
@@ -350,6 +376,7 @@ class ModelAdminOut(BaseModel):
 class ModelCreateRequest(BaseModel):
     category_id: int
     name: str
+    short_name: str | None = None
     manufacturer: str | None = None
     description: str | None = None
     access_policy: str = "all"
@@ -360,6 +387,7 @@ class ModelCreateRequest(BaseModel):
 class ModelUpdateRequest(BaseModel):
     category_id: int | None = None
     name: str | None = None
+    short_name: str | None = None
     manufacturer: str | None = None
     description: str | None = None
     access_policy: str | None = None
@@ -394,3 +422,26 @@ class ItemUpdateRequest(BaseModel):
     serial_number: str | None = None
     status: str | None = None
     notes: str | None = None
+
+class ModelAvailabilityOut(BaseModel):
+    """Доступность модели на выбранный интервал + ближайший подходящий слот."""
+
+    model_id: int
+    available_in_period: int | None = None
+    next_available_start: datetime | None = None
+    next_available_end: datetime | None = None
+
+class AliasOut(BaseModel):
+    """Альтернативное название модели."""
+    id: int
+    model_id: int
+    value: str
+    created_by_user_id: int | None = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AliasCreateIn(BaseModel):
+    value: str = Field(min_length=1, max_length=120)
+

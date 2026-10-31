@@ -1,11 +1,14 @@
 from sqlalchemy import (
     CheckConstraint,
+    DateTime,
     ForeignKey,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    func,
 )
+from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -33,7 +36,6 @@ class Category(Base):
         Text,
         nullable=True,
     )
-
     models: Mapped[list["EquipmentModel"]] = relationship(
         back_populates="category",
         order_by="EquipmentModel.name",
@@ -83,6 +85,11 @@ class EquipmentModel(Base):
         nullable=True,
     )
 
+    short_name: Mapped[str | None] = mapped_column(
+        String(60),
+        nullable=True,
+    )
+
     image_filename: Mapped[str | None] = mapped_column(
         String(80),
         nullable=True,
@@ -115,6 +122,11 @@ class EquipmentModel(Base):
 
     items: Mapped[list["EquipmentItem"]] = relationship(
         back_populates="model",
+    )
+
+    aliases: Mapped[list["EquipmentModelAlias"]] = relationship(
+        back_populates="model",
+        cascade="all, delete-orphan",
     )
 
 
@@ -167,3 +179,68 @@ class EquipmentItem(Base):
     model: Mapped["EquipmentModel"] = relationship(
         back_populates="items",
     )
+
+class EquipmentModelAlias(Base):
+    """Поисковый синоним/тег для модели оборудования."""
+
+    __tablename__ = "equipment_model_aliases"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "model_id", "value_normalized",
+            name="uq_model_alias_normalized",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    model_id: Mapped[int] = mapped_column(
+        ForeignKey("equipment_models.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    value: Mapped[str] = mapped_column(String(120), nullable=False)
+    value_normalized: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    model: Mapped["EquipmentModel"] = relationship(back_populates="aliases")
+
+
+class UserFavorite(Base):
+    """Избранная модель оборудования пользователя."""
+
+    __tablename__ = "user_favorites"
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "model_id", name="uq_user_favorite"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    model_id: Mapped[int] = mapped_column(
+        ForeignKey("equipment_models.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(),
+        nullable=False,
+    )
+
+

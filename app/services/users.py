@@ -241,7 +241,7 @@ class UserDeletionBlocked(Exception):
 
 
 class UserHasUnreturnedEquipment(Exception):
-    """За пользователем числится выданная и не возвращённая техника."""
+    """За пользователем числятся активные брони (pending/confirmed) на будущее."""
 
 
 async def _count_other_active_admins(session: AsyncSession, exclude_user_id: int) -> int:
@@ -260,6 +260,13 @@ async def _count_other_active_admins(session: AsyncSession, exclude_user_id: int
 
 
 async def _unreturned_labels(session: AsyncSession, user_id: int) -> list[str]:
+    """Активные брони, за которые пользователь ещё отвечает.
+
+    Этап 2: ответственность привязана к интервалу planned_start..planned_end.
+    Блокируем удаление, если есть pending/confirmed брони с planned_end > now.
+    Фактическая выдача/возврат (actual_*) больше не используется.
+    """
+    now = datetime.now(timezone.utc)
     stmt = (
         select(Booking.quantity, EquipmentModel.name, EquipmentItem.inventory_number)
         .select_from(Booking)
@@ -270,8 +277,8 @@ async def _unreturned_labels(session: AsyncSession, user_id: int) -> list[str]:
         )
         .where(
             Booking.user_id == user_id,
-            Booking.actual_checkout.is_not(None),
-            Booking.actual_return.is_(None),
+            Booking.status.in_(("pending", "confirmed")),
+            Booking.planned_end > now,
         )
         .order_by(Booking.id)
     )

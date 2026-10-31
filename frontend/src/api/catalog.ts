@@ -18,12 +18,16 @@ export interface EquipmentModelOut {
   name: string;
   manufacturer: string | null;
   description: string | null;
+  short_name?: string | null;
+  aliases?: string[];
   access_policy: "all" | "photographer" | "videographer";
   tracking_type: "individual" | "quantity";
   total_quantity: number;
   available_now: number;
   free_until: string | null;
   next_busy_at: string | null;
+  // Этап 2+: доступность на выбранный интервал (только при from_dt/to_dt).
+  available_in_period?: number | null;
   image_url?: string | null;
 }
 
@@ -56,12 +60,15 @@ export interface CatalogItem {
   category: string;
   categoryCode: string;
   subtitle: string;
+  shortName?: string | null;
+  aliases?: string[];
   icon: "camera" | "light" | "mic";
   trackingType: "individual" | "quantity";
   totalQuantity: number;
   availableNow: number;
   freeUntil: string | null;
   nextBusyAt: string | null;
+  availableInPeriod?: number | null;       // доступно на выбранный период (undefined если нет данных)
   imageUrl?: string | null;
 }
 
@@ -69,12 +76,49 @@ import { apiFetch, ApiError } from "./client";
 
 export { ApiError };
 
-export function fetchCatalog(): Promise<CategoryWithModelsOut[]> {
-  return apiFetch<CategoryWithModelsOut[]>("/catalog");
+/**
+ * Каталог с моделями.
+ * Без параметров — доступность «на сейчас».
+ * С from_dt/to_dt — дополнительно available_in_period.
+ */
+export function fetchCatalog(
+  fromIso?: string | null,
+  toIso?: string | null,
+): Promise<CategoryWithModelsOut[]> {
+  const qs = new URLSearchParams();
+  if (fromIso && toIso) {
+    qs.set("from_dt", fromIso);
+    qs.set("to_dt", toIso);
+  }
+  const q = qs.toString();
+  return apiFetch<CategoryWithModelsOut[]>(`/catalog${q ? `?${q}` : ""}`);
 }
 
 export function fetchModel(id: number): Promise<EquipmentModelDetailResponse> {
   return apiFetch<EquipmentModelDetailResponse>(`/catalog/models/${id}`);
+}
+
+export interface ModelAvailability {
+  model_id: number;
+  available_in_period: number | null;
+  next_available_start: string | null;
+  next_available_end: string | null;
+}
+
+/** Доступность одной модели на интервал + ближайший подходящий слот. */
+export function fetchModelAvailability(
+  modelId: number,
+  fromIso: string,
+  toIso: string,
+  quantity: number = 1,
+): Promise<ModelAvailability> {
+  const qs = new URLSearchParams();
+  qs.set("from_dt", fromIso);
+  qs.set("to_dt", toIso);
+  qs.set("quantity", String(quantity));
+  return apiFetch<ModelAvailability>(
+    `/catalog/models/${modelId}/availability?${qs.toString()}`,
+  );
 }
 
 // Пиктограмма по категории — временная эвристика до появления поля icon в БД.
@@ -105,6 +149,8 @@ export function toCatalogItems(
         title: model.name,
         category: category.name,
         categoryCode: category.code,
+        shortName: model.short_name ?? null,
+        aliases: model.aliases ?? [],
         subtitle:
           model.manufacturer
             ? `${model.manufacturer}${model.description ? " · " + model.description : ""}`
@@ -115,6 +161,7 @@ export function toCatalogItems(
         availableNow: model.available_now,
         freeUntil: model.free_until,
         nextBusyAt: model.next_busy_at,
+        availableInPeriod: model.available_in_period ?? null,
         imageUrl: model.image_url ?? null,
       });
     }
@@ -173,9 +220,9 @@ export interface BookingOut {
   comment: string | null;
   created_at: string | null;
   group_id: number | null;
-  // Денормализованные поля (Этап 2):
   user_name: string | null;
   model_name: string | null;
+  model_short_name: string | null;
   category_name: string | null;
   item_inventory_number: string | null;
 }
@@ -201,19 +248,6 @@ export function createBooking(data: BookingRequest): Promise<BookingOut> {
     body: JSON.stringify(data),
   });
 }
-
-export function checkoutBooking(bookingId: number): Promise<BookingOut> {
-  return fetchJsonWithAuth<BookingOut>(`/bookings/${bookingId}/checkout`, {
-    method: "POST",
-  });
-}
-
-export function returnBooking(bookingId: number): Promise<BookingOut> {
-  return fetchJsonWithAuth<BookingOut>(`/bookings/${bookingId}/return`, {
-    method: "POST",
-  });
-}
-
 
 export function fetchBookings(): Promise<BookingOut[]> {
   return fetchJsonWithAuth<BookingOut[]>("/bookings");
